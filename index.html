@@ -155,6 +155,35 @@ footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display
 ::-webkit-scrollbar-thumb{background:#2c2c33;border-radius:5px;}
 ::-webkit-scrollbar-track{background:transparent;}
 
+#galleryView{
+  position:fixed;inset:0;z-index:500;background:var(--bg);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.gallery-header{
+  padding:16px 26px;display:flex;align-items:center;gap:16px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  background:linear-gradient(180deg,#141417,#101012);
+}
+.gallery-header h1{
+  font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:19px;
+  letter-spacing:.5px;margin:0;white-space:nowrap;
+}
+.gallery-header p{color:var(--muted);font-size:12.5px;margin:0;flex:1;line-height:1.45;}
+#galleryGrid{
+  flex:1;overflow-y:auto;display:grid;
+  grid-template-columns:repeat(4,1fr);gap:16px;padding:20px 26px;
+  align-content:start;
+}
+.gallery-card{
+  background:var(--panel-2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 8px 6px;cursor:pointer;display:flex;flex-direction:column;gap:6px;align-items:center;
+  transition:border-color .15s, transform .15s;
+}
+.gallery-card:hover{border-color:var(--accent);transform:translateY(-3px);}
+.gallery-card svg{width:100%;height:auto;border-radius:5px;display:block;}
+.gcard-label{font-size:11.5px;color:var(--muted);}
+.gallery-card:hover .gcard-label{color:var(--accent);}
+
 .modal-overlay{
   position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;
   z-index:1000;padding:20px;
@@ -178,9 +207,27 @@ footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display
   </details>
 </header>
 
+<div id="galleryView">
+  <div class="gallery-header">
+    <h1>Choisissez un projet de départ</h1>
+    <p>Chaque vignette est un tatouage complet généré automatiquement. Cliquez sur celui qui vous inspire — vous le personnaliserez ensuite élément par élément.</p>
+    <button id="regenAllBtn" class="primary">🎲 Regénérer tout</button>
+    <button id="galleryContinueBtn">Continuer ma composition →</button>
+  </div>
+  <div id="galleryGrid"></div>
+</div>
+
 <div class="workspace">
 
   <aside class="panel left">
+    <h2>Projet</h2>
+    <div class="btn-row">
+      <button id="fullGenBtn" class="primary full">🌲 Générer un tatouage complet</button>
+    </div>
+    <div class="btn-row">
+      <button id="galleryBtn" class="full">🏠 Galerie de projets</button>
+    </div>
+
     <h2>Zone du corps</h2>
     <label class="field">
       <span class="flabel">Partie du corps</span>
@@ -240,9 +287,6 @@ footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display
     <div id="properties"><p class="empty-msg">Sélectionnez un élément sur le dessin ou dans les calques.</p></div>
 
     <h2>Composition</h2>
-    <div class="btn-row">
-      <button id="fullGenBtn" class="primary full">🌲 Générer un tatouage complet</button>
-    </div>
     <div class="btn-row">
       <button id="resetBtn" class="danger full">🔄 Réinitialiser</button>
     </div>
@@ -961,14 +1005,23 @@ function autoPlacement(type, bodyKey){
   return {x,y,rot,scale};
 }
 let batchCounter = 1;
-function addBatch(type, n){
+function makeBatchElements(type, n, bodyKey){
   const batchId = batchCounter++;
+  const arr = [];
   for(let i=0;i<n;i++){
-    const opts = autoPlacement(type, state.bodyPart);
+    const opts = autoPlacement(type, bodyKey);
     if(type==="structure"){ opts.struct = randomStructParams(mulberry32(randSeed())); }
     opts.batchId = batchId;
-    addElement(type, opts);
+    arr.push(makeElement(type, opts));
   }
+  return arr;
+}
+function addBatch(type, n){
+  const arr = makeBatchElements(type, n, state.bodyPart);
+  arr.forEach(el=>state.elements.push(el));
+  if(arr.length) selectedId = arr[arr.length-1].id;
+  renderElements();
+  persist();
 }
 function incrementElement(type){
   addBatch(type, batchSizeFor(type));
@@ -995,7 +1048,7 @@ function defaultVariant(type){
   const def = ELEMENT_TYPES[type];
   return def.variants ? def.variants[0] : undefined;
 }
-function addElement(type, opts){
+function makeElement(type, opts){
   opts = opts||{};
   const el = {
     id: idCounter++,
@@ -1016,6 +1069,10 @@ function addElement(type, opts){
   if(type==="structure"){
     el.struct = opts.struct || randomStructParams(mulberry32(el.seed));
   }
+  return el;
+}
+function addElement(type, opts){
+  const el = makeElement(type, opts);
   state.elements.push(el);
   selectedId = el.id;
   renderElements();
@@ -1051,8 +1108,7 @@ function duplicateEl(id){
 }
 
 /* ---------- base structure generator ---------- */
-function generateBaseStructure(){
-  state.elements = state.elements.filter(e=>!e.isBase);
+function makeBaseStructureElements(){
   const count = 3 + Math.floor(Math.random()*3);
   const newBases = [];
   for(let i=0;i<count;i++){
@@ -1063,7 +1119,7 @@ function generateBaseStructure(){
       widthBase: 7+rng()*9,
       widthVar: 0.12+rng()*0.22
     } : {});
-    const el = {
+    newBases.push({
       id: idCounter++,
       type: "structure",
       x: 250 + (i-(count-1)/2)*34 + (rng()-0.5)*30,
@@ -1078,9 +1134,13 @@ function generateBaseStructure(){
       variant: undefined,
       isBase: true,
       struct
-    };
-    newBases.push(el);
+    });
   }
+  return newBases;
+}
+function generateBaseStructure(){
+  state.elements = state.elements.filter(e=>!e.isBase);
+  const newBases = makeBaseStructureElements();
   state.elements = [...newBases, ...state.elements];
   selectedId = newBases[newBases.length-1].id;
   renderElements();
@@ -1406,81 +1466,27 @@ function renderProperties(){
 notesArea.addEventListener("input",()=>{ state.notes = notesArea.value; });
 notesArea.addEventListener("change", persist);
 
-/* ---------- demo / clear ---------- */
-function loadDemo(){
-  state.bodyPart = "fullSleeve";
-  state.mirror = false;
-  state.elements = [];
-  state.notes = "Composition d'exemple générée automatiquement — à ajuster librement.";
-  notesArea.value = state.notes;
-  addElement("structure", {x:225, y:430, scale:1.05, rot:9, isBase:true, seed:501,
-    struct:{H:760, amp:70, phase:0.4, freq:0.9, widthBase:46, widthVar:0.55, bulgePos:0.4}});
-  addElement("structure", {x:300, y:400, scale:0.95, rot:-11, isBase:true, seed:502,
-    struct:{H:700, amp:55, phase:2.6, freq:1.1, widthBase:34, widthVar:0.45, bulgePos:0.6}});
-  addElement("structure", {x:260, y:520, scale:1.0, rot:20, opacity:0.8, isBase:true, seed:503,
-    struct:{H:640, amp:90, phase:1.2, freq:1.3, widthBase:12, widthVar:0.2, bulgePos:0.5}});
-  addElement("structure", {x:195, y:600, scale:0.9, rot:-25, opacity:0.78, isBase:true, seed:504,
-    struct:{H:560, amp:60, phase:4.0, freq:1.6, widthBase:10, widthVar:0.18, bulgePos:0.35}});
-  addElement("moon",     {x:290, y:140, scale:0.5});
-  addElement("raven",    {x:170, y:120, scale:0.35, rot:-15, variant:1});
-  addElement("raven",    {x:330, y:180, scale:0.3,  rot:10,  variant:2});
-  addElement("raven",    {x:150, y:300, scale:0.32, rot:-8,  variant:1});
-  addElement("raven",    {x:350, y:380, scale:0.28, rot:15,  variant:2});
-  addElement("raven",    {x:200, y:460, scale:0.3,  rot:-12, variant:1});
-  addElement("raven",    {x:310, y:600, scale:0.32, rot:6,   variant:2});
-  addElement("pine",     {x:160, y:520, scale:0.4,  rot:-5});
-  addElement("pine",     {x:220, y:560, scale:0.35, rot:8});
-  addElement("pine",     {x:300, y:700, scale:0.4,  rot:-6});
-  addElement("pine",     {x:180, y:680, scale:0.32, rot:10});
-  addElement("forest",   {x:260, y:430, scale:0.65});
-  addElement("forest",   {x:230, y:650, scale:0.6, rot:-5});
-  addElement("branches", {x:205, y:150, scale:0.45, rot:-8});
-  addElement("branches", {x:280, y:190, scale:0.4,  rot:10});
-  addElement("branches", {x:240, y:230, scale:0.42, rot:-3});
-  addElement("roots",    {x:250, y:700, scale:0.45});
-  addElement("roots",    {x:200, y:730, scale:0.4,  rot:10});
-  addElement("roots",    {x:300, y:720, scale:0.42, rot:-8});
-  addElement("thorns",   {x:250, y:690, scale:0.55, rot:3});
-  addElement("thorns",   {x:210, y:650, scale:0.5,  rot:-10});
-  addElement("mist",     {x:255, y:580, scale:0.7, opacity:0.3});
-  addElement("mist",     {x:230, y:500, scale:0.6, opacity:0.28});
-  addElement("ink",      {x:300, y:560, scale:0.4, rot:-12});
-  addElement("ink",      {x:200, y:610, scale:0.38, rot:15});
-  addElement("slash",    {x:170, y:495, scale:0.45, rot:24});
-  addElement("slash",    {x:320, y:540, scale:0.4,  rot:-18});
-  addElement("fracture", {x:335, y:270, scale:0.42, rot:-6});
-  addElement("fracture", {x:190, y:350, scale:0.4,  rot:12});
-  addElement("splatter", {x:320, y:300, scale:0.7,  rot:20});
-  addElement("splatter", {x:180, y:540, scale:0.6,  rot:-35});
-  addElement("cut",      {x:255, y:390, scale:1.0,  rot:38});
-  addElement("cut",      {x:235, y:560, scale:0.9,  rot:-42});
-  renderBodyGuide();
-  renderElements();
-  persist();
-}
+/* ---------- full generation ---------- */
 const FULL_GEN_TYPES = ["moon","raven","pine","forest","branches","roots","thorns","mist","ink","slash","fracture","splatter","cut"];
 const FULL_GEN_COUNT = { moon:[1,1], forest:[1,2], mist:[1,2], cut:[1,2], splatter:[1,2], default:[2,4] };
 function fullGenCountFor(type){
   const r = FULL_GEN_COUNT[type] || FULL_GEN_COUNT.default;
   return r[0] + Math.floor(Math.random()*(r[1]-r[0]+1));
 }
+function buildFullComposition(bodyKey){
+  const els = [...makeBaseStructureElements()];
+  FULL_GEN_TYPES.forEach(type=>{
+    if(Math.random()<0.85) els.push(...makeBatchElements(type, fullGenCountFor(type), bodyKey));
+  });
+  return els;
+}
 function generateFullTattoo(){
-  const run = ()=>{
-    state.elements = [];
-    selectedId = null;
-    generateBaseStructure();
-    FULL_GEN_TYPES.forEach(type=>{
-      if(Math.random()<0.85) addBatch(type, fullGenCountFor(type));
-    });
-    state.notes = state.notes || "Tatouage généré automatiquement — à ajuster librement.";
-    notesArea.value = state.notes;
-    persist();
-  };
-  if(state.elements.length>0){
-    showConfirm("Générer un nouveau tatouage complet à la place de la composition actuelle ?", run);
-  } else {
-    run();
-  }
+  state.elements = buildFullComposition(state.bodyPart);
+  selectedId = null;
+  state.notes = state.notes || "Tatouage généré automatiquement — à ajuster librement.";
+  notesArea.value = state.notes;
+  renderElements();
+  persist();
 }
 function resetAll(){
   const run = ()=>{
@@ -1502,6 +1508,88 @@ function resetAll(){
 }
 document.getElementById("fullGenBtn").addEventListener("click", generateFullTattoo);
 document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+/* ---------- home gallery: pick a starting project ---------- */
+const galleryView = document.getElementById("galleryView");
+const galleryGrid = document.getElementById("galleryGrid");
+const galleryContinueBtn = document.getElementById("galleryContinueBtn");
+let galleryProjects = [];
+let thumbMaskCounter = 0;
+
+function buildCompositionSvg(elements, bodyKey){
+  const maskId = "negMask-t"+(thumbMaskCounter++);
+  const s = svgEl("svg",{viewBox:"0 0 500 900"});
+  const defs = svgEl("defs",{});
+  const mask = svgEl("mask",{id:maskId, maskUnits:"userSpaceOnUse"});
+  mask.appendChild(svgEl("rect",{x:-300,y:-300,width:1100,height:1500,fill:"#fff"}));
+  defs.appendChild(mask);
+  const clip = svgEl("clipPath",{id:maskId+"-clip"});
+  clip.appendChild(svgEl("path",{d: bodyPathD(bodyKey)}));
+  defs.appendChild(clip);
+  s.appendChild(defs);
+  s.appendChild(svgEl("rect",{x:0,y:0,width:500,height:900,fill:"#3c3b3a"}));
+  const body = svgEl("g",{});
+  body.appendChild(svgEl("path",{d:bodyPathD(bodyKey), fill:"url(#skinGrad)", stroke:"#00000030","stroke-width":1.5}));
+  const layer = svgEl("g",{"clip-path":`url(#${maskId}-clip)`});
+  const wrap = svgEl("g",{mask:`url(#${maskId})`});
+  layer.appendChild(wrap);
+  elements.forEach(el=>{
+    const def = ELEMENT_TYPES[el.type];
+    const rng = mulberry32(el.seed);
+    const built = def.build(rng, el);
+    if(def.rough) built.node.setAttribute("filter","url(#inkRough)");
+    if(def.negative){
+      const mg = svgEl("g",{fill:"#000",stroke:"#000",opacity:el.opacity, transform:elTransform(el)});
+      mg.appendChild(built.node);
+      mask.appendChild(mg);
+    } else {
+      const g = svgEl("g",{fill:el.color,stroke:el.color,opacity:el.opacity,transform:elTransform(el)});
+      g.appendChild(built.node);
+      wrap.appendChild(g);
+    }
+  });
+  body.appendChild(layer);
+  s.appendChild(body);
+  return s;
+}
+
+const GALLERY_COUNT = 8;
+function regenerateGallery(){
+  galleryGrid.innerHTML = "";
+  galleryProjects = [];
+  for(let i=0;i<GALLERY_COUNT;i++){
+    const els = buildFullComposition(state.bodyPart);
+    galleryProjects.push(els);
+    const card = document.createElement("button");
+    card.className = "gallery-card";
+    card.appendChild(buildCompositionSvg(els, state.bodyPart));
+    const lbl = document.createElement("span");
+    lbl.className = "gcard-label";
+    lbl.textContent = "Choisir ce projet";
+    card.appendChild(lbl);
+    card.addEventListener("click", ()=>chooseProject(i));
+    galleryGrid.appendChild(card);
+  }
+}
+function chooseProject(i){
+  state.elements = galleryProjects[i];
+  selectedId = null;
+  state.notes = state.notes || "Projet choisi dans la galerie — à personnaliser librement.";
+  notesArea.value = state.notes;
+  hideGallery();
+  renderBodyGuide();
+  renderElements();
+  persist();
+}
+function showGallery(){
+  galleryContinueBtn.style.display = state.elements.length>0 ? "" : "none";
+  galleryView.style.display = "flex";
+  if(galleryGrid.children.length===0) regenerateGallery();
+}
+function hideGallery(){ galleryView.style.display = "none"; }
+document.getElementById("regenAllBtn").addEventListener("click", regenerateGallery);
+galleryContinueBtn.addEventListener("click", hideGallery);
+document.getElementById("galleryBtn").addEventListener("click", showGallery);
 
 /* ---------- persistence ---------- */
 let persistTimer=null;
@@ -1581,12 +1669,10 @@ loadJsonInput.addEventListener("change", ()=>{
 });
 
 /* ---------- init ---------- */
-if(!loadPersisted()){
-  loadDemo();
-} else {
-  renderBodyGuide();
-  renderElements();
-}
+loadPersisted();
+renderBodyGuide();
+renderElements();
+showGallery();
 
 })();
 </script>
