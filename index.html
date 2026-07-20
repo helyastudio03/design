@@ -1254,14 +1254,14 @@ function makeBaseStructureElements(){
     const rng = mulberry32(seed);
     let H, wBase, wVar, flick, op, scale;
     if(kind==="mass"){
-      H=480+rng()*260; wBase=26+rng()*18; wVar=0.4+rng()*0.4;
-      flick=0.15+rng()*0.3; op=0.9+rng()*0.08; scale=0.95+rng()*0.2;
+      H=500+rng()*280; wBase=13+rng()*13; wVar=0.25+rng()*0.35;
+      flick=0.2+rng()*0.4; op=0.92+rng()*0.06; scale=0.95+rng()*0.15;
     } else if(kind==="strand"){
-      H=430+rng()*260; wBase=7+rng()*9; wVar=0.1+rng()*0.2;
-      flick=0.3+rng()*0.5; op=0.75+rng()*0.15; scale=0.95+rng()*0.25;
+      H=420+rng()*300; wBase=3.5+rng()*6; wVar=0.1+rng()*0.15;
+      flick=0.35+rng()*0.6; op=0.8+rng()*0.15; scale=0.95+rng()*0.2;
     } else { /* flame accent */
-      H=170+rng()*160; wBase=16+rng()*13; wVar=0.3+rng()*0.3;
-      flick=0.7+rng()*0.7; op=0.88+rng()*0.1; scale=0.9+rng()*0.2;
+      H=140+rng()*160; wBase=9+rng()*9; wVar=0.25+rng()*0.3;
+      flick=0.8+rng()*0.8; op=0.9+rng()*0.08; scale=0.9+rng()*0.2;
     }
     const amp = ampBase*(0.75+rng()*0.5) * H/700;
     bases.push({
@@ -1283,21 +1283,30 @@ function makeBaseStructureElements(){
       }
     });
   }
-  const nM = 2+Math.floor(Math.random()*2);
-  for(let i=0;i<nM;i++) push("mass", 260+(i+0.5)*(420/nM)+(Math.random()-0.5)*60, (Math.random()-0.5)*90);
-  const nS = 2+Math.floor(Math.random()*2);
-  for(let i=0;i<nS;i++) push("strand", 280+(i+0.5)*(400/nS)+(Math.random()-0.5)*80, (Math.random()-0.5)*110);
-  const nF = 1+Math.floor(Math.random()*2);
-  for(let i=0;i<nF;i++) push("flame", Math.random()<0.5 ? 200+Math.random()*90 : 620+Math.random()*90, (Math.random()-0.5)*90);
+  /* distribute tongues across the limb width in staggered lanes so
+     they interleave with skin instead of piling into one black block */
+  const nM = 4+Math.floor(Math.random()*3);
+  for(let i=0;i<nM;i++){
+    const lane = -95 + 190*(i+0.5)/nM + (Math.random()-0.5)*40;
+    push("mass", 250+(i%2)*140+Math.random()*160, lane);
+  }
+  const nS = 4+Math.floor(Math.random()*3);
+  for(let i=0;i<nS;i++){
+    const lane = -110 + 220*(i+0.5)/nS + (Math.random()-0.5)*45;
+    push("strand", 260+Math.random()*320, lane);
+  }
+  const nF = 2+Math.floor(Math.random()*3);
+  for(let i=0;i<nF;i++) push("flame", Math.random()<0.5 ? 170+Math.random()*120 : 580+Math.random()*140, (Math.random()-0.5)*180);
   /* negative channels running with the flow: carve the thin skin lines
      that separate the tongues where the masses overlap */
-  const nC = 2+Math.floor(Math.random()*2);
+  const nC = 3+Math.floor(Math.random()*3);
   for(let i=0;i<nC;i++){
     const seed = randSeed();
+    const lane = -80 + 160*(i+0.5)/nC + (Math.random()-0.5)*36;
     bases.push({
       id: idCounter++,
       type: "cut",
-      x: cx + (Math.random()-0.5)*100,
+      x: cx + lane,
       y: 250+(i+0.5)*(400/nC)+(Math.random()-0.5)*70,
       rot: (sign>0 ? 90 : -90) + (Math.random()-0.5)*30,
       scale: 1.0+Math.random()*0.5,
