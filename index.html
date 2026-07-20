@@ -206,9 +206,11 @@ footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display
   <main class="canvas-wrap">
     <svg id="artboard" viewBox="0 0 500 900" xmlns="http://www.w3.org/2000/svg">
       <defs id="artDefs">
-        <filter id="inkRough" x="-30%" y="-30%" width="160%" height="160%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+        <filter id="inkRough" x="-45%" y="-45%" width="190%" height="190%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.012 0.03" numOctaves="3" seed="7" result="big"/>
+          <feDisplacementMap in="SourceGraphic" in2="big" scale="13" xChannelSelector="R" yChannelSelector="G" result="warped"/>
+          <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="11" result="fine"/>
+          <feDisplacementMap in="warped" in2="fine" scale="4" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
         <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
           <feGaussianBlur stdDeviation="9"/>
@@ -218,6 +220,7 @@ footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display
           <stop offset="1" stop-color="#a68b73"/>
         </linearGradient>
         <clipPath id="bodyClip"><path id="bodyClipPath" d=""/></clipPath>
+        <mask id="negMask" maskUnits="userSpaceOnUse"></mask>
       </defs>
       <rect x="0" y="0" width="500" height="900" fill="#3c3b3a"/>
       <g id="bodyGroup">
@@ -381,20 +384,135 @@ function bodyPathD(key){
 
 function symBox(hx,hy){ return {left:hx,right:hx,top:hy,bottom:hy}; }
 
-function genBlob(rng, o){
+/* Brushstroke engine: curved spine, tapered tips, torn edges, trailing ink droplets.
+   All the abstract shapes (masses, lames, bandes, coupes) are built on this. */
+function genStroke(rng, o){
   o = o||{};
-  const baseR = o.baseR||95, pts0 = o.points||10, irregularity = o.irregularity===undefined?0.5:o.irregularity;
-  const pts = [];
-  for(let i=0;i<pts0;i++){
-    const a = i*Math.PI*2/pts0 + (rng()-0.5)*0.35;
-    const r = baseR*(1 + (rng()-0.5)*2*irregularity);
-    pts.push({x:Math.cos(a)*r, y:Math.sin(a)*r});
+  const len   = o.len || 260;
+  const maxW  = o.maxW || 26;
+  const curv  = o.curv!==undefined ? o.curv : (rng()-0.5)*1.8;
+  const a0    = o.angle0!==undefined ? o.angle0 : 0;
+  const tip   = o.tip!==undefined ? o.tip : 0.7;
+  const bulge = clamp(o.bulge!==undefined ? o.bulge : (0.3+rng()*0.4), 0.12, 0.88);
+  const jag   = o.jag!==undefined ? o.jag : 0.35;
+  const wob   = o.wobble!==undefined ? o.wobble : 0.4;
+  const drops = o.droplets!==undefined ? o.droplets : (rng()<0.6);
+  const N = 26;
+  const ds = len/N;
+  const spine = [];
+  let px=0, py=0;
+  for(let i=0;i<=N;i++){
+    spine.push({x:px,y:py});
+    const t = i/N;
+    const a = a0 - curv/2 + curv*t + (rng()-0.5)*wob*0.35;
+    px += Math.cos(a)*ds;
+    py += Math.sin(a)*ds;
   }
-  const d = smoothClosedPath(pts, 1);
+  const k = Math.log(0.5)/Math.log(bulge);
+  function widthAt(t){
+    const tp = Math.pow(t, k);
+    return maxW * Math.pow(Math.max(0, 4*tp*(1-tp)), tip);
+  }
+  function frameAt(i){
+    const p = spine[Math.max(0,i-1)], n = spine[Math.min(N,i+1)];
+    const dx=n.x-p.x, dy=n.y-p.y, dl=Math.hypot(dx,dy)||1;
+    return {nx:-dy/dl, ny:dx/dl, tx:dx/dl, ty:dy/dl};
+  }
+  const left=[], right=[];
+  for(let i=1;i<N;i++){
+    const t=i/N;
+    const w = Math.max(0.6, widthAt(t) + (rng()-0.5)*maxW*jag*Math.sin(t*Math.PI));
+    const {nx,ny} = frameAt(i);
+    left.push({x:spine[i].x+nx*w, y:spine[i].y+ny*w});
+    right.push({x:spine[i].x-nx*w, y:spine[i].y-ny*w});
+  }
+  const pts = [spine[0], ...left, spine[N], ...right.slice().reverse()];
   const g = svgEl("g",{});
-  g.appendChild(svgEl("path",{d}));
-  const maxR = baseR*(1+irregularity)*1.05;
-  return {node:g, bbox:symBox(maxR,maxR)};
+  g.appendChild(svgEl("path",{d: smoothClosedPath(pts, 0.55)}));
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  pts.forEach(p=>{ minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x); minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y); });
+  if(drops){
+    const {tx,ty} = frameAt(N);
+    let dpos = 6+rng()*8;
+    const nDrops = 2+Math.floor(rng()*3);
+    for(let d=0; d<nDrops; d++){
+      const r = maxW*(0.16 - d*0.035)*(0.7+rng()*0.6);
+      if(r<0.8) break;
+      const cx2 = spine[N].x + tx*dpos + (rng()-0.5)*maxW*0.5;
+      const cy2 = spine[N].y + ty*dpos + (rng()-0.5)*maxW*0.5;
+      g.appendChild(svgEl("circle",{cx:cx2.toFixed(1), cy:cy2.toFixed(1), r:r.toFixed(1)}));
+      minX=Math.min(minX,cx2-r); maxX=Math.max(maxX,cx2+r);
+      minY=Math.min(minY,cy2-r); maxY=Math.max(maxY,cy2+r);
+      dpos += r*2 + 4 + rng()*10;
+    }
+  }
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  g.setAttribute("transform", `translate(${(-cx).toFixed(1)},${(-cy).toFixed(1)})`);
+  const pad=10;
+  return {node:g, bbox:{left:(cx-minX)+pad, right:(maxX-cx)+pad, top:(cy-minY)+pad, bottom:(maxY-cy)+pad}};
+}
+
+function genInkMass(rng, o){
+  const g = svgEl("g",{});
+  const n = 2+Math.floor(rng()*2);
+  const baseA = rng()*Math.PI;
+  let L=10,R=10,T=10,B=10;
+  for(let i=0;i<n;i++){
+    const s = genStroke(rng, {
+      len: 150+rng()*110,
+      maxW: 34+rng()*26,
+      curv: (rng()-0.5)*1.2,
+      angle0: baseA + (rng()-0.5)*0.9,
+      tip: 0.55+rng()*0.25,
+      jag: 0.45,
+      droplets: rng()<0.5
+    });
+    const ox=(rng()-0.5)*46, oy=(rng()-0.5)*46;
+    const w = svgEl("g",{transform:`translate(${ox.toFixed(1)},${oy.toFixed(1)})`});
+    w.appendChild(s.node);
+    g.appendChild(w);
+    L=Math.max(L, s.bbox.left-ox); R=Math.max(R, s.bbox.right+ox);
+    T=Math.max(T, s.bbox.top-oy);  B=Math.max(B, s.bbox.bottom+oy);
+  }
+  return {node:g, bbox:{left:L,right:R,top:T,bottom:B}};
+}
+
+function genSplatter(rng, o){
+  const g = svgEl("g",{});
+  const dir = rng()*Math.PI*2;
+  const reach = 70+rng()*50;
+  const nd = 7+Math.floor(rng()*6);
+  let minX=0,maxX=0,minY=0,maxY=0;
+  for(let i=0;i<nd;i++){
+    const d = Math.pow(rng(),0.7)*reach;
+    const spread = (rng()-0.5)*(6+d*0.35);
+    const sx = Math.cos(dir)*d - Math.sin(dir)*spread;
+    const sy = Math.sin(dir)*d + Math.cos(dir)*spread;
+    const r = Math.max(1, (1-d/reach)*(4+rng()*7));
+    if(rng()<0.3){
+      g.appendChild(svgEl("ellipse",{cx:sx.toFixed(1),cy:sy.toFixed(1), rx:(r*1.9).toFixed(1), ry:r.toFixed(1),
+        transform:`rotate(${(dir*180/Math.PI).toFixed(1)} ${sx.toFixed(1)} ${sy.toFixed(1)})`}));
+    } else {
+      g.appendChild(svgEl("circle",{cx:sx.toFixed(1),cy:sy.toFixed(1),r:r.toFixed(1)}));
+    }
+    minX=Math.min(minX,sx-r*2); maxX=Math.max(maxX,sx+r*2);
+    minY=Math.min(minY,sy-r*2); maxY=Math.max(maxY,sy+r*2);
+  }
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  g.setAttribute("transform",`translate(${(-cx).toFixed(1)},${(-cy).toFixed(1)})`);
+  return {node:g, bbox:{left:(cx-minX)+8, right:(maxX-cx)+8, top:(cy-minY)+8, bottom:(maxY-cy)+8}};
+}
+
+function genCut(rng, o){
+  return genStroke(rng, {
+    len: 240+rng()*140,
+    maxW: 9+rng()*9,
+    curv: (rng()-0.5)*2.2,
+    tip: 0.5,
+    jag: 0.2,
+    wobble: 0.3,
+    droplets: false
+  });
 }
 
 function genBranch(rng, downward, o){
@@ -544,40 +662,14 @@ function genMist(rng, o){
 }
 
 function genSlash(rng, o){
-  o = o||{};
-  const len = o.len || (260+rng()*130);
-  const maxW = o.maxW || (15+rng()*11);
-  const n = 16;
-  const bulge = 0.3+rng()*0.4;
-  const topPts = [], botPts = [];
-  for(let i=0;i<=n;i++){
-    const t = i/n;
-    const x = -len/2 + len*t;
-    const distFromBulge = Math.abs(t-bulge);
-    const spread = Math.max(bulge, 1-bulge);
-    let w = maxW * Math.pow(Math.max(0,1-distFromBulge/spread), 0.75);
-    const jag = (rng()-0.5)*maxW*0.4*(0.35+0.65*Math.sin(t*Math.PI));
-    w = Math.max(1.2, w+jag);
-    topPts.push({x, y:-w});
-    botPts.push({x, y:w});
-  }
-  topPts[0]={x:-len/2,y:0}; botPts[0]={x:-len/2,y:0};
-  topPts[n]={x:len/2,y:0}; botPts[n]={x:len/2,y:0};
-  const barbCount = 1+Math.floor(rng()*3);
-  for(let b=0;b<barbCount;b++){
-    const idx = 3+Math.floor(rng()*(n-6));
-    const arr = rng()<0.5 ? topPts : botPts;
-    const sign = arr===topPts ? -1 : 1;
-    const spikeLen = maxW*(0.7+rng()*0.6);
-    const spikeX = (arr[idx].x+arr[Math.min(idx+1,arr.length-1)].x)/2;
-    arr.splice(idx+1, 0, {x:spikeX, y:sign*spikeLen});
-  }
-  const pts = [...topPts, ...botPts.slice().reverse()];
-  const d = "M "+pts.map(p=>p.x.toFixed(1)+" "+p.y.toFixed(1)).join(" L ")+" Z";
-  const g = svgEl("g",{});
-  g.appendChild(svgEl("path",{d}));
-  const hx = len/2+14, hy = maxW*1.9+10;
-  return {node:g, bbox:symBox(hx,hy)};
+  return genStroke(rng, {
+    len: 240+rng()*140,
+    maxW: 14+rng()*12,
+    curv: (rng()-0.5)*1.6,
+    tip: 0.85,
+    jag: 0.5,
+    droplets: true
+  });
 }
 
 function genFracture(rng, o){
@@ -676,43 +768,25 @@ function randomStructParams(rng, o){
 }
 function genStructure(rng, struct){
   const s = struct || randomStructParams(rng);
-  const n = 24;
-  const spine = [];
-  for(let i=0;i<=n;i++){
-    const t = i/n;
-    const y = -s.H/2 + s.H*t;
-    const x = s.amp*Math.sin(t*s.freq*Math.PI*2 + s.phase);
-    spine.push({x,y});
-  }
-  function normalAt(i){
-    const prev = spine[Math.max(0,i-1)], next = spine[Math.min(n,i+1)];
-    const dx = next.x-prev.x, dy = next.y-prev.y, dl = Math.hypot(dx,dy)||1;
-    return {nx:-dy/dl, ny:dx/dl};
-  }
-  const leftPts=[], rightPts=[];
-  for(let i=0;i<=n;i++){
-    const t = i/n;
-    const edgeTaper = Math.pow(Math.sin(Math.min(1,Math.max(0,t))*Math.PI), 0.6);
-    const bulge = 1 + s.widthVar*Math.exp(-Math.pow((t-s.bulgePos)/0.22, 2));
-    const jag = (rng()-0.5)*s.widthBase*0.35;
-    const w = Math.max(1.5, s.widthBase*edgeTaper*bulge + jag);
-    const {nx,ny} = normalAt(i);
-    leftPts.push({x:spine[i].x+nx*w, y:spine[i].y+ny*w});
-    rightPts.push({x:spine[i].x-nx*w, y:spine[i].y-ny*w});
-  }
-  const pts = [...leftPts, ...rightPts.slice().reverse()];
-  const d = smoothClosedPath(pts, 0.9);
-  const g = svgEl("g",{});
-  g.appendChild(svgEl("path",{d}));
-  const maxW = s.widthBase*(1+s.widthVar)+10;
-  const bbox = {left:s.amp+maxW, right:s.amp+maxW, top:s.H/2+14, bottom:s.H/2+14};
-  return {node:g, bbox};
+  return genStroke(rng, {
+    len: s.H,
+    maxW: s.widthBase*(1+s.widthVar*0.6),
+    curv: clamp(8*s.amp/s.H, 0.15, 2.2) * (s.phase>Math.PI?-1:1),
+    angle0: Math.PI/2,
+    tip: 0.6,
+    bulge: s.bulgePos,
+    jag: 0.32,
+    wobble: clamp(s.freq*0.35, 0.1, 0.9),
+    droplets: rng()<0.65
+  });
 }
 
 const ELEMENT_TYPES = {
-  structure: {label:"Bande structurelle", sub:"grande forme fluide (base)", color:"#0a0a0a", opacity:0.94, rough:true, build:(rng,el)=>genStructure(rng, el&&el.struct)},
-  ink:      {label:"Masse d'encre",   sub:"forme organique abstraite", color:"#0a0a0a", opacity:0.96, rough:true,  build:(rng,el)=>genBlob(rng,{})},
-  slash:    {label:"Lame",            sub:"forme longue, bords déchirés", color:"#0a0a0a", opacity:0.96, rough:true, build:(rng,el)=>genSlash(rng,{})},
+  structure: {label:"Bande structurelle", sub:"grand coup de pinceau (base)", color:"#0a0a0a", opacity:0.94, rough:true, build:(rng,el)=>genStructure(rng, el&&el.struct)},
+  cut:      {label:"Coupe négative",  sub:"tranche le noir → peau", color:"#0a0a0a", opacity:1, rough:true, negative:true, build:(rng,el)=>genCut(rng,{})},
+  ink:      {label:"Masse d'encre",   sub:"coups de pinceau croisés", color:"#0a0a0a", opacity:0.96, rough:true,  build:(rng,el)=>genInkMass(rng,{})},
+  slash:    {label:"Lame",            sub:"trait courbe effilé + gouttes", color:"#0a0a0a", opacity:0.96, rough:true, build:(rng,el)=>genSlash(rng,{})},
+  splatter: {label:"Éclats",          sub:"gouttes d'encre projetées", color:"#0a0a0a", opacity:0.95, rough:false, build:(rng,el)=>genSplatter(rng,{})},
   fracture: {label:"Fracture / éclair", sub:"ligne anguleuse agressive", color:"#0a0a0a", opacity:0.96, rough:false, build:(rng,el)=>genFracture(rng,{})},
   thorns:   {label:"Épines",          sub:"tige ornementale épineuse", color:"#0a0a0a", opacity:0.96, rough:true, build:(rng,el)=>genThorns(rng,{})},
   branches: {label:"Branches mortes", sub:"fractal, s'étend vers le haut", color:"#0a0a0a", opacity:0.92, rough:true, build:(rng,el)=>genBranch(rng,false,{})},
@@ -743,6 +817,7 @@ const svg = document.getElementById("artboard");
 const bodyGroup = document.getElementById("bodyGroup");
 const bgGuide = document.getElementById("bgGuide");
 const elementsLayer = document.getElementById("elementsLayer");
+const negMask = document.getElementById("negMask");
 const overlay = document.getElementById("overlay");
 const bodyClipPath = document.getElementById("bodyClipPath");
 const bodyPartSelect = document.getElementById("bodyPartSelect");
@@ -843,15 +918,19 @@ const ZONE_BIAS = {
   mist:      {yr:[0.40,0.85]},
   ink:       {yr:[0.15,0.85]},
   slash:     {yr:[0.15,0.85]},
+  splatter:  {yr:[0.08,0.9]},
+  cut:       {yr:[0.12,0.88]},
   fracture:  {yr:[0.10,0.70]},
   structure: {yr:[0.15,0.85]}
 };
-const WIDE_ROT_TYPES = {slash:1, fracture:1, structure:1};
+const WIDE_ROT_TYPES = {slash:1, fracture:1, structure:1, cut:1, splatter:1};
 const SCALE_RANGE = {
   structure: [0.85,1.15],
   forest:    [0.5,0.8],
   mist:      [0.5,0.85],
   moon:      [0.35,0.6],
+  cut:       [0.75,1.1],
+  splatter:  [0.5,0.9],
   default:   [0.28,0.52]
 };
 function scaleRangeFor(type){ return SCALE_RANGE[type] || SCALE_RANGE.default; }
@@ -860,6 +939,8 @@ const BATCH_RANGE = {
   moon:      [1,1],
   forest:    [1,2],
   mist:      [2,3],
+  cut:       [1,2],
+  splatter:  [2,4],
   default:   [4,7]
 };
 function batchSizeFor(type){
@@ -1036,33 +1117,68 @@ function elTransform(el){
 
 function renderElements(){
   elementsLayer.innerHTML = "";
+  negMask.innerHTML = "";
+  negMask.appendChild(svgEl("rect",{x:-300,y:-300,width:1100,height:1500,fill:"#fff"}));
+  const inkWrap = svgEl("g",{mask:"url(#negMask)"});
+  elementsLayer.appendChild(inkWrap);
   state.elements.forEach(el=>{
     const def = ELEMENT_TYPES[el.type];
     const rng = mulberry32(el.seed);
     const built = def.build(rng, el);
     el.bbox = built.bbox;
-    const g = svgEl("g",{
-      "data-id": el.id,
-      fill: el.color, stroke: el.color,
-      opacity: el.visible ? el.opacity : 0,
-      style: `pointer-events:${el.visible?"auto":"none"}; cursor:${el.visible?"grab":"default"};`,
-      transform: elTransform(el)
-    });
-    if(def.rough) built.node.setAttribute("filter","url(#inkRough)");
     const b = el.bbox;
-    const hit = svgEl("rect",{
-      x:-b.left, y:-b.top, width:b.left+b.right, height:b.top+b.bottom,
-      fill:"transparent", stroke:"none"
-    });
-    g.appendChild(hit);
-    g.appendChild(built.node);
-    g.addEventListener("pointerdown", (evt)=>startDrag(evt, el, "move"));
-    elementsLayer.appendChild(g);
+    if(def.rough) built.node.setAttribute("filter","url(#inkRough)");
+    if(def.negative){
+      // the visible effect lives in the mask (black = erased to skin);
+      // a transparent proxy in the normal layer carries hit-testing
+      const mg = svgEl("g",{
+        "data-mask-id": el.id,
+        fill:"#000", stroke:"#000",
+        opacity: el.visible ? el.opacity : 0,
+        transform: elTransform(el)
+      });
+      mg.appendChild(built.node);
+      negMask.appendChild(mg);
+      const proxy = svgEl("g",{
+        "data-id": el.id,
+        style: `pointer-events:${el.visible?"auto":"none"}; cursor:${el.visible?"grab":"default"};`,
+        transform: elTransform(el)
+      });
+      proxy.appendChild(svgEl("rect",{
+        x:-b.left, y:-b.top, width:b.left+b.right, height:b.top+b.bottom,
+        fill:"transparent", stroke:"none"
+      }));
+      proxy.addEventListener("pointerdown", (evt)=>startDrag(evt, el, "move"));
+      elementsLayer.appendChild(proxy);
+    } else {
+      const g = svgEl("g",{
+        "data-id": el.id,
+        fill: el.color, stroke: el.color,
+        opacity: el.visible ? el.opacity : 0,
+        style: `pointer-events:${el.visible?"auto":"none"}; cursor:${el.visible?"grab":"default"};`,
+        transform: elTransform(el)
+      });
+      const hit = svgEl("rect",{
+        x:-b.left, y:-b.top, width:b.left+b.right, height:b.top+b.bottom,
+        fill:"transparent", stroke:"none"
+      });
+      g.appendChild(hit);
+      g.appendChild(built.node);
+      g.addEventListener("pointerdown", (evt)=>startDrag(evt, el, "move"));
+      inkWrap.appendChild(g);
+    }
   });
   renderOverlay();
   renderLayerList();
   renderProperties();
   refreshPaletteCounts();
+}
+function syncElementNode(el){
+  const t = elTransform(el);
+  const g = elementsLayer.querySelector(`[data-id="${el.id}"]`);
+  if(g) g.setAttribute("transform", t);
+  const mg = negMask.querySelector(`[data-mask-id="${el.id}"]`);
+  if(mg) mg.setAttribute("transform", t);
 }
 
 function renderOverlay(){
@@ -1136,8 +1252,7 @@ function onDragMove(evt){
     const base = Math.hypot(el.bbox.right, el.bbox.bottom);
     el.scale = clamp(dist/base, 0.15, 5);
   }
-  const g = elementsLayer.querySelector(`[data-id="${el.id}"]`);
-  if(g) g.setAttribute("transform", elTransform(el));
+  syncElementNode(el);
   renderOverlay();
 }
 function onDragEnd(evt){
@@ -1167,7 +1282,7 @@ document.addEventListener("keydown",(evt)=>{
   if(evt.key==="ArrowRight"){ el.x+=step; moved=true; }
   if(evt.key==="ArrowUp"){ el.y-=step; moved=true; }
   if(evt.key==="ArrowDown"){ el.y+=step; moved=true; }
-  if(moved){ evt.preventDefault(); const g=elementsLayer.querySelector(`[data-id="${el.id}"]`); if(g) g.setAttribute("transform", elTransform(el)); renderOverlay(); persist(); }
+  if(moved){ evt.preventDefault(); syncElementNode(el); renderOverlay(); persist(); }
 });
 
 /* ---------- layer list ---------- */
@@ -1223,25 +1338,32 @@ function renderProperties(){
   const opRow = document.createElement("div"); opRow.className="rangewrap";
   const opRange = document.createElement("input"); opRange.type="range"; opRange.min="0.05"; opRange.max="1"; opRange.step="0.01"; opRange.value=el.opacity;
   const opVal = document.createElement("span"); opVal.className="rv"; opVal.textContent = Math.round(el.opacity*100)+"%";
-  opRange.addEventListener("input",()=>{ el.opacity=parseFloat(opRange.value); opVal.textContent=Math.round(el.opacity*100)+"%"; const g=elementsLayer.querySelector(`[data-id="${el.id}"]`); if(g) g.setAttribute("opacity", el.opacity); });
+  opRange.addEventListener("input",()=>{
+    el.opacity=parseFloat(opRange.value); opVal.textContent=Math.round(el.opacity*100)+"%";
+    const mg = negMask.querySelector(`[data-mask-id="${el.id}"]`);
+    const g = mg || elementsLayer.querySelector(`[data-id="${el.id}"]`);
+    if(g) g.setAttribute("opacity", el.opacity);
+  });
   opRange.addEventListener("change",persist);
   opRow.appendChild(opRange); opRow.appendChild(opVal);
   opWrap.appendChild(opRow);
   propsEl.appendChild(opWrap);
 
-  // color
-  const colWrap = document.createElement("label"); colWrap.className="field";
-  colWrap.innerHTML = `<span class="flabel">Teinte (noir / gris)</span>`;
-  const swWrap = document.createElement("div"); swWrap.className="swatches";
-  COLOR_SWATCHES.forEach(c=>{
-    const sw = document.createElement("button");
-    sw.className = "swatch"+(el.color.toLowerCase()===c?" active":"");
-    sw.style.background = c;
-    sw.addEventListener("click",()=>{ el.color=c; renderElements(); persist(); });
-    swWrap.appendChild(sw);
-  });
-  colWrap.appendChild(swWrap);
-  propsEl.appendChild(colWrap);
+  // color (meaningless for negative cuts — they always reveal skin)
+  if(!def.negative){
+    const colWrap = document.createElement("label"); colWrap.className="field";
+    colWrap.innerHTML = `<span class="flabel">Teinte (noir / gris)</span>`;
+    const swWrap = document.createElement("div"); swWrap.className="swatches";
+    COLOR_SWATCHES.forEach(c=>{
+      const sw = document.createElement("button");
+      sw.className = "swatch"+(el.color.toLowerCase()===c?" active":"");
+      sw.style.background = c;
+      sw.addEventListener("click",()=>{ el.color=c; renderElements(); persist(); });
+      swWrap.appendChild(sw);
+    });
+    colWrap.appendChild(swWrap);
+    propsEl.appendChild(colWrap);
+  }
 
   // variant toggle
   if(def.variants){
@@ -1328,12 +1450,16 @@ function loadDemo(){
   addElement("slash",    {x:320, y:540, scale:0.4,  rot:-18});
   addElement("fracture", {x:335, y:270, scale:0.42, rot:-6});
   addElement("fracture", {x:190, y:350, scale:0.4,  rot:12});
+  addElement("splatter", {x:320, y:300, scale:0.7,  rot:20});
+  addElement("splatter", {x:180, y:540, scale:0.6,  rot:-35});
+  addElement("cut",      {x:255, y:390, scale:1.0,  rot:38});
+  addElement("cut",      {x:235, y:560, scale:0.9,  rot:-42});
   renderBodyGuide();
   renderElements();
   persist();
 }
-const FULL_GEN_TYPES = ["moon","raven","pine","forest","branches","roots","thorns","mist","ink","slash","fracture"];
-const FULL_GEN_COUNT = { moon:[1,1], forest:[1,2], mist:[1,2], default:[2,4] };
+const FULL_GEN_TYPES = ["moon","raven","pine","forest","branches","roots","thorns","mist","ink","slash","fracture","splatter","cut"];
+const FULL_GEN_COUNT = { moon:[1,1], forest:[1,2], mist:[1,2], cut:[1,2], splatter:[1,2], default:[2,4] };
 function fullGenCountFor(type){
   const r = FULL_GEN_COUNT[type] || FULL_GEN_COUNT.default;
   return r[0] + Math.floor(Math.random()*(r[1]-r[0]+1));
