@@ -154,6 +154,17 @@ footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display
 ::-webkit-scrollbar{width:9px;height:9px;}
 ::-webkit-scrollbar-thumb{background:#2c2c33;border-radius:5px;}
 ::-webkit-scrollbar-track{background:transparent;}
+
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;
+  z-index:1000;padding:20px;
+}
+.modal-box{
+  background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:18px 20px;
+  max-width:380px;box-shadow:0 12px 40px rgba(0,0,0,.55);
+}
+.modal-msg{margin:0 0 16px 0;font-size:13.5px;line-height:1.5;color:var(--text);}
+.modal-box .btn-row{justify-content:flex-end;margin-bottom:0;}
 </style>
 </head>
 <body>
@@ -272,6 +283,55 @@ function mulberry32(seed){
 }
 function randSeed(){ return Math.floor(Math.random()*1e9); }
 function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+/* Native confirm()/alert() are blocked (silently return false) inside the
+   sandboxed iframe Artifacts run in, so use in-page dialogs instead. */
+function closeModal(overlay){ overlay.remove(); }
+function showConfirm(message, onYes){
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  const box = document.createElement("div");
+  box.className = "modal-box";
+  const msg = document.createElement("p");
+  msg.className = "modal-msg";
+  msg.textContent = message;
+  box.appendChild(msg);
+  const row = document.createElement("div");
+  row.className = "btn-row";
+  const noBtn = document.createElement("button");
+  noBtn.textContent = "Annuler";
+  noBtn.addEventListener("click", ()=>closeModal(overlay));
+  const yesBtn = document.createElement("button");
+  yesBtn.className = "primary";
+  yesBtn.textContent = "Confirmer";
+  yesBtn.addEventListener("click", ()=>{ closeModal(overlay); onYes(); });
+  row.appendChild(noBtn); row.appendChild(yesBtn);
+  box.appendChild(row);
+  overlay.appendChild(box);
+  overlay.addEventListener("click",(e)=>{ if(e.target===overlay) closeModal(overlay); });
+  document.body.appendChild(overlay);
+}
+function showAlert(message){
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  const box = document.createElement("div");
+  box.className = "modal-box";
+  const msg = document.createElement("p");
+  msg.className = "modal-msg";
+  msg.textContent = message;
+  box.appendChild(msg);
+  const row = document.createElement("div");
+  row.className = "btn-row";
+  const okBtn = document.createElement("button");
+  okBtn.className = "primary";
+  okBtn.textContent = "OK";
+  okBtn.addEventListener("click", ()=>closeModal(overlay));
+  row.appendChild(okBtn);
+  box.appendChild(row);
+  overlay.appendChild(box);
+  overlay.addEventListener("click",(e)=>{ if(e.target===overlay) closeModal(overlay); });
+  document.body.appendChild(overlay);
+}
 
 function smoothClosedPath(points, tension){
   tension = tension===undefined?1:tension;
@@ -1279,28 +1339,40 @@ function fullGenCountFor(type){
   return r[0] + Math.floor(Math.random()*(r[1]-r[0]+1));
 }
 function generateFullTattoo(){
-  if(state.elements.length>0 && !confirm("Générer un nouveau tatouage complet à la place de la composition actuelle ?")) return;
-  state.elements = [];
-  selectedId = null;
-  generateBaseStructure();
-  FULL_GEN_TYPES.forEach(type=>{
-    if(Math.random()<0.85) addBatch(type, fullGenCountFor(type));
-  });
-  state.notes = state.notes || "Tatouage généré automatiquement — à ajuster librement.";
-  notesArea.value = state.notes;
-  persist();
+  const run = ()=>{
+    state.elements = [];
+    selectedId = null;
+    generateBaseStructure();
+    FULL_GEN_TYPES.forEach(type=>{
+      if(Math.random()<0.85) addBatch(type, fullGenCountFor(type));
+    });
+    state.notes = state.notes || "Tatouage généré automatiquement — à ajuster librement.";
+    notesArea.value = state.notes;
+    persist();
+  };
+  if(state.elements.length>0){
+    showConfirm("Générer un nouveau tatouage complet à la place de la composition actuelle ?", run);
+  } else {
+    run();
+  }
 }
 function resetAll(){
-  if(state.elements.length>0 && !confirm("Réinitialiser entièrement la composition (éléments, corps, notes) ?")) return;
-  state.bodyPart = "fullSleeve";
-  state.mirror = false;
-  state.elements = [];
-  state.notes = "";
-  selectedId = null;
-  notesArea.value = "";
-  renderBodyGuide();
-  renderElements();
-  persist();
+  const run = ()=>{
+    state.bodyPart = "fullSleeve";
+    state.mirror = false;
+    state.elements = [];
+    state.notes = "";
+    selectedId = null;
+    notesArea.value = "";
+    renderBodyGuide();
+    renderElements();
+    persist();
+  };
+  if(state.elements.length>0){
+    showConfirm("Réinitialiser entièrement la composition (éléments, corps, notes) ?", run);
+  } else {
+    run();
+  }
 }
 document.getElementById("fullGenBtn").addEventListener("click", generateFullTattoo);
 document.getElementById("resetBtn").addEventListener("click", resetAll);
@@ -1349,7 +1421,7 @@ document.getElementById("exportPngBtn").addEventListener("click", ()=>{
       a.click();
     });
   };
-  img.onerror = ()=>{ alert("Erreur lors de l'export PNG."); };
+  img.onerror = ()=>{ showAlert("Erreur lors de l'export PNG."); };
   img.src = url;
 });
 document.getElementById("saveJsonBtn").addEventListener("click", ()=>{
@@ -1376,7 +1448,7 @@ loadJsonInput.addEventListener("change", ()=>{
       renderBodyGuide();
       renderElements();
       persist();
-    }catch(e){ alert("Fichier JSON invalide."); }
+    }catch(e){ showAlert("Fichier JSON invalide."); }
   };
   reader.readAsText(file);
   loadJsonInput.value = "";
