@@ -440,6 +440,7 @@ function genStroke(rng, o){
   const bulge = clamp(o.bulge!==undefined ? o.bulge : (0.3+rng()*0.4), 0.12, 0.88);
   const jag   = o.jag!==undefined ? o.jag : 0.35;
   const wob   = o.wobble!==undefined ? o.wobble : 0.4;
+  const flick = o.flick||0; /* extra whip-curl toward the tip */
   const drops = o.droplets!==undefined ? o.droplets : (rng()<0.6);
   const N = 26;
   const ds = len/N;
@@ -448,7 +449,8 @@ function genStroke(rng, o){
   for(let i=0;i<=N;i++){
     spine.push({x:px,y:py});
     const t = i/N;
-    const a = a0 - curv/2 + curv*t + (rng()-0.5)*wob*0.35;
+    const a = a0 - curv/2 + curv*t + (rng()-0.5)*wob*0.35
+            + flick*Math.sign(curv||1)*Math.pow(t,3)*1.6;
     px += Math.cos(a)*ds;
     py += Math.sin(a)*ds;
   }
@@ -927,11 +929,12 @@ function genStructure(rng, struct){
     maxW: s.widthBase*(1+s.widthVar*0.6),
     curv: clamp(8*s.amp/s.H, 0.15, 2.2) * (s.phase>Math.PI?-1:1),
     angle0: Math.PI/2,
-    tip: 0.6,
+    tip: 0.78,
     bulge: s.bulgePos,
-    jag: 0.32,
+    jag: 0.26,
     wobble: clamp(s.freq*0.35, 0.1, 0.9),
-    droplets: rng()<0.65
+    flick: s.flick||0,
+    droplets: rng()<0.45
   });
 }
 
@@ -1117,8 +1120,17 @@ function autoPlacement(type, bodyKey){
   const yr = zone.yr;
   const x = bb.minX + (bb.maxX-bb.minX)*(xr[0]+Math.random()*(xr[1]-xr[0]));
   const y = bb.minY + (bb.maxY-bb.minY)*(yr[0]+Math.random()*(yr[1]-yr[0]));
-  const rotRange = WIDE_ROT_TYPES[type] ? 35 : (type==="moon" ? 6 : (type==="ornament" ? 10 : 25));
-  const rot = (Math.random()-0.5)*2*rotRange;
+  /* slash/tribal/cut run lengthwise along the limb (their local spine is
+     horizontal, so ±90° turns them vertical); structure is already vertical */
+  let rot;
+  if(type==="slash" || type==="tribal" || type==="cut"){
+    rot = (Math.random()<0.5 ? 90 : -90) + (Math.random()-0.5)*50;
+  } else if(type==="structure"){
+    rot = (Math.random()-0.5)*24;
+  } else {
+    const rotRange = WIDE_ROT_TYPES[type] ? 35 : (type==="moon" ? 6 : (type==="ornament" ? 10 : 25));
+    rot = (Math.random()-0.5)*2*rotRange;
+  }
   const [lo,hi] = scaleRangeFor(type);
   const scale = lo+Math.random()*(hi-lo);
   return {x,y,rot,scale};
@@ -1226,36 +1238,76 @@ function duplicateEl(id){
   persist();
 }
 
-/* ---------- base structure generator ---------- */
+/* ---------- base structure generator ----------
+   One coherent "flow bundle", modeled on flowing blackwork sleeves:
+   every band shares the same sweep direction and roughly follows the
+   limb axis, staggered along its length. Wide flame-tongue masses,
+   thin echo strands interleaved beside them, and short whip-tipped
+   flame accents near the ends — instead of independent random bands. */
 function makeBaseStructureElements(){
-  const count = 3 + Math.floor(Math.random()*3);
-  const newBases = [];
-  for(let i=0;i<count;i++){
+  const sign = Math.random()<0.5 ? 1 : -1;
+  const ampBase = 60+Math.random()*60;
+  const cx = 250 + (Math.random()-0.5)*30;
+  const bases = [];
+  function push(kind, yPos, xOff){
     const seed = randSeed();
     const rng = mulberry32(seed);
-    const thin = rng() < 0.4;
-    const struct = randomStructParams(rng, thin ? {
-      widthBase: 7+rng()*9,
-      widthVar: 0.12+rng()*0.22
-    } : {});
-    newBases.push({
+    let H, wBase, wVar, flick, op, scale;
+    if(kind==="mass"){
+      H=480+rng()*260; wBase=26+rng()*18; wVar=0.4+rng()*0.4;
+      flick=0.15+rng()*0.3; op=0.9+rng()*0.08; scale=0.95+rng()*0.2;
+    } else if(kind==="strand"){
+      H=430+rng()*260; wBase=7+rng()*9; wVar=0.1+rng()*0.2;
+      flick=0.3+rng()*0.5; op=0.75+rng()*0.15; scale=0.95+rng()*0.25;
+    } else { /* flame accent */
+      H=170+rng()*160; wBase=16+rng()*13; wVar=0.3+rng()*0.3;
+      flick=0.7+rng()*0.7; op=0.88+rng()*0.1; scale=0.9+rng()*0.2;
+    }
+    const amp = ampBase*(0.75+rng()*0.5) * H/700;
+    bases.push({
       id: idCounter++,
       type: "structure",
-      x: 250 + (i-(count-1)/2)*34 + (rng()-0.5)*30,
-      y: 440 + (rng()-0.5)*60,
-      rot: (rng()-0.5)*30,
-      scale: thin ? (0.9+rng()*0.35) : (0.85+rng()*0.3),
-      flip: 1,
-      opacity: thin ? (0.72+rng()*0.16) : (0.9+rng()*0.08),
+      x: cx + xOff,
+      y: yPos,
+      rot: (rng()-0.5)*14,
+      scale, flip: 1, opacity: op,
       color: ELEMENT_TYPES.structure.color,
-      visible: true,
-      seed,
-      variant: undefined,
-      isBase: true,
-      struct
+      visible: true, seed, variant: undefined, isBase: true,
+      struct: {
+        H, amp,
+        phase: sign>0 ? 0.5 : 4.0,
+        freq: 0.9+rng()*0.6,
+        widthBase: wBase, widthVar: wVar,
+        bulgePos: 0.25+rng()*0.4,
+        flick
+      }
     });
   }
-  return newBases;
+  const nM = 2+Math.floor(Math.random()*2);
+  for(let i=0;i<nM;i++) push("mass", 260+(i+0.5)*(420/nM)+(Math.random()-0.5)*60, (Math.random()-0.5)*90);
+  const nS = 2+Math.floor(Math.random()*2);
+  for(let i=0;i<nS;i++) push("strand", 280+(i+0.5)*(400/nS)+(Math.random()-0.5)*80, (Math.random()-0.5)*110);
+  const nF = 1+Math.floor(Math.random()*2);
+  for(let i=0;i<nF;i++) push("flame", Math.random()<0.5 ? 200+Math.random()*90 : 620+Math.random()*90, (Math.random()-0.5)*90);
+  /* negative channels running with the flow: carve the thin skin lines
+     that separate the tongues where the masses overlap */
+  const nC = 2+Math.floor(Math.random()*2);
+  for(let i=0;i<nC;i++){
+    const seed = randSeed();
+    bases.push({
+      id: idCounter++,
+      type: "cut",
+      x: cx + (Math.random()-0.5)*100,
+      y: 250+(i+0.5)*(400/nC)+(Math.random()-0.5)*70,
+      rot: (sign>0 ? 90 : -90) + (Math.random()-0.5)*30,
+      scale: 1.0+Math.random()*0.5,
+      flip: 1,
+      opacity: 1,
+      color: ELEMENT_TYPES.cut.color,
+      visible: true, seed, variant: undefined, isBase: true
+    });
+  }
+  return bases;
 }
 function generateBaseStructure(){
   state.elements = state.elements.filter(e=>!e.isBase);
@@ -1272,13 +1324,14 @@ function variationBaseStructure(){
     const s = el.struct;
     const jit = (v,amt)=> v + (Math.random()-0.5)*2*amt;
     el.struct = {
-      H: clamp(jit(s.H,35), 480, 900),
+      H: clamp(jit(s.H,35), 160, 900),
       amp: clamp(jit(s.amp,20), 15, 210),
-      phase: s.phase + (Math.random()-0.5)*0.6,
+      phase: s.phase + (Math.random()-0.5)*0.4,
       freq: clamp(jit(s.freq,0.14), 0.35, 2.3),
-      widthBase: clamp(jit(s.widthBase,8), 14, 95),
+      widthBase: clamp(jit(s.widthBase,6), 6, 95),
       widthVar: clamp(jit(s.widthVar,0.14), 0.08, 1.15),
-      bulgePos: clamp(jit(s.bulgePos,0.09), 0.08, 0.92)
+      bulgePos: clamp(jit(s.bulgePos,0.09), 0.08, 0.92),
+      flick: clamp(jit(s.flick||0,0.15), 0, 1.6)
     };
     el.rot = clamp(jit(el.rot,7), -40, 40);
     el.x = jit(el.x, 12);
