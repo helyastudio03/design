@@ -56,7 +56,7 @@ header .style-text{
 .workspace{
   flex:1;
   display:grid;
-  grid-template-columns:230px 1fr 300px;
+  grid-template-columns:250px 1fr 300px;
   min-height:0;
 }
 .panel{
@@ -94,11 +94,16 @@ button:disabled{opacity:.35;cursor:default;}
 button:disabled:hover{background:var(--panel-2);border-color:var(--border);}
 
 .palette-item{
-  display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px;margin-bottom:6px;
+  display:flex;align-items:center;gap:7px;width:100%;text-align:left;padding:6px 7px;margin-bottom:5px;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:5px;
 }
-.palette-item svg{flex-shrink:0;width:38px;height:38px;background:#0e0e10;border-radius:4px;border:1px solid var(--border);}
-.palette-item .plabel{font-size:12.5px;}
-.palette-item .psub{display:block;color:var(--muted);font-size:10.5px;}
+.palette-item svg{flex-shrink:0;width:29px;height:29px;background:#0e0e10;border-radius:4px;border:1px solid var(--border);}
+.palette-item .ptext{flex:1;min-width:0;}
+.palette-item .plabel{font-size:12px;line-height:1.25;display:block;}
+.palette-item .psub{display:block;color:var(--muted);font-size:9.5px;line-height:1.2;}
+.stepper{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.stepbtn{width:23px;height:23px;padding:0;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;border-radius:5px;}
+.stepcount{min-width:16px;text-align:center;font-size:12px;color:var(--text);font-variant-numeric:tabular-nums;}
 
 .canvas-wrap{
   position:relative;
@@ -727,15 +732,82 @@ function miniIcon(type){
 }
 Object.keys(ELEMENT_TYPES).forEach(type=>{
   const def = ELEMENT_TYPES[type];
-  const btn = document.createElement("button");
-  btn.className = "palette-item";
-  btn.appendChild(miniIcon(type));
+  const row = document.createElement("div");
+  row.className = "palette-item";
+  row.appendChild(miniIcon(type));
   const txt = document.createElement("span");
+  txt.className = "ptext";
   txt.innerHTML = `<span class="plabel">${def.label}</span><span class="psub">${def.sub}</span>`;
-  btn.appendChild(txt);
-  btn.addEventListener("click", ()=>addElement(type));
-  paletteEl.appendChild(btn);
+  row.appendChild(txt);
+  const stepper = document.createElement("div");
+  stepper.className = "stepper";
+  const minusBtn = document.createElement("button");
+  minusBtn.className = "stepbtn"; minusBtn.type="button"; minusBtn.textContent = "−";
+  minusBtn.title = "Retirer : "+def.label;
+  minusBtn.addEventListener("click", ()=>decrementElement(type));
+  const countSpan = document.createElement("span");
+  countSpan.className = "stepcount"; countSpan.dataset.type = type; countSpan.textContent = "0";
+  const plusBtn = document.createElement("button");
+  plusBtn.className = "stepbtn"; plusBtn.type="button"; plusBtn.textContent = "+";
+  plusBtn.title = "Ajouter automatiquement : "+def.label;
+  plusBtn.addEventListener("click", ()=>incrementElement(type));
+  stepper.appendChild(minusBtn); stepper.appendChild(countSpan); stepper.appendChild(plusBtn);
+  row.appendChild(stepper);
+  paletteEl.appendChild(row);
 });
+function refreshPaletteCounts(){
+  const counts = {};
+  state.elements.forEach(e=>{ counts[e.type] = (counts[e.type]||0)+1; });
+  paletteEl.querySelectorAll(".stepcount").forEach(span=>{
+    span.textContent = counts[span.dataset.type] || 0;
+  });
+}
+
+/* ---------- automatic placement (used by +/- steppers) ---------- */
+function bodyBBox(key){
+  const pts = BODY_PARTS[key].pts;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  pts.forEach(p=>{ minX=Math.min(minX,p[0]); maxX=Math.max(maxX,p[0]); minY=Math.min(minY,p[1]); maxY=Math.max(maxY,p[1]); });
+  return {minX,maxX,minY,maxY};
+}
+const ZONE_BIAS = {
+  moon:      {yr:[0.04,0.30]},
+  raven:     {yr:[0.05,0.55]},
+  forest:    {yr:[0.35,0.72]},
+  pine:      {yr:[0.30,0.75]},
+  branches:  {yr:[0.05,0.42]},
+  roots:     {yr:[0.60,0.95]},
+  thorns:    {yr:[0.55,0.92]},
+  mist:      {yr:[0.40,0.85]},
+  ink:       {yr:[0.15,0.85]},
+  slash:     {yr:[0.15,0.85]},
+  fracture:  {yr:[0.10,0.70]},
+  structure: {yr:[0.15,0.85]}
+};
+const WIDE_ROT_TYPES = {slash:1, fracture:1, structure:1};
+function autoPlacement(type, bodyKey){
+  const bb = bodyBBox(bodyKey);
+  const zone = ZONE_BIAS[type] || {yr:[0.1,0.9]};
+  const xr = zone.xr || [0.14,0.86];
+  const yr = zone.yr;
+  const x = bb.minX + (bb.maxX-bb.minX)*(xr[0]+Math.random()*(xr[1]-xr[0]));
+  const y = bb.minY + (bb.maxY-bb.minY)*(yr[0]+Math.random()*(yr[1]-yr[0]));
+  const rotRange = WIDE_ROT_TYPES[type] ? 35 : (type==="moon" ? 6 : 20);
+  const rot = (Math.random()-0.5)*2*rotRange;
+  const scale = 0.85+Math.random()*0.35;
+  return {x,y,rot,scale};
+}
+function incrementElement(type){
+  const opts = autoPlacement(type, state.bodyPart);
+  if(type==="structure"){ opts.struct = randomStructParams(mulberry32(randSeed())); }
+  addElement(type, opts);
+}
+function decrementElement(type){
+  const matches = state.elements.filter(e=>e.type===type);
+  if(matches.length===0) return;
+  const last = matches.reduce((a,b)=> b.id>a.id?b:a);
+  removeEl(last.id);
+}
 
 /* ---------- element management ---------- */
 function defaultVariant(type){
@@ -885,6 +957,7 @@ function renderElements(){
   renderOverlay();
   renderLayerList();
   renderProperties();
+  refreshPaletteCounts();
 }
 
 function renderOverlay(){
