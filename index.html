@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atelier de composition — tatouage blackwork organique</title>
+<style>
+:root{
+  --bg:#0c0c0e;
+  --panel:#17171b;
+  --panel-2:#1e1e23;
+  --border:#2b2b31;
+  --text:#e9e7e1;
+  --muted:#9a978f;
+  --accent:#b9974a;
+  --accent-dim:#7a6636;
+  --danger:#9a4444;
+  --danger-hover:#b95555;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;height:100%;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Helvetica Neue",Arial,sans-serif;
+  font-size:14px;
+  display:flex;
+  flex-direction:column;
+  height:100vh;
+  overflow:hidden;
+}
+header{
+  padding:14px 20px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:baseline;
+  gap:16px;
+  flex-shrink:0;
+  background:linear-gradient(180deg,#141417,#101012);
+}
+header h1{
+  font-family:Georgia,"Times New Roman",serif;
+  font-weight:400;
+  font-size:19px;
+  letter-spacing:.5px;
+  margin:0;
+  color:var(--text);
+}
+header .sub{color:var(--muted);font-size:12.5px;}
+header details{margin-left:auto;max-width:520px;}
+header summary{cursor:pointer;color:var(--accent);font-size:12.5px;user-select:none;}
+header .style-text{
+  margin-top:8px;padding:10px 12px;background:var(--panel-2);border:1px solid var(--border);
+  border-radius:6px;color:var(--muted);font-size:12px;line-height:1.5;max-height:160px;overflow:auto;
+}
+.workspace{
+  flex:1;
+  display:grid;
+  grid-template-columns:230px 1fr 300px;
+  min-height:0;
+}
+.panel{
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  padding:14px;
+}
+.panel.right{border-right:none;border-left:1px solid var(--border);}
+.panel h2{
+  font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);
+  margin:0 0 10px 0;font-weight:600;
+}
+.panel h2:not(:first-child){margin-top:22px;}
+select, textarea, input[type=text]{
+  width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+  border-radius:5px;padding:7px 8px;font-size:13px;font-family:inherit;
+}
+label.field{display:block;margin-bottom:12px;}
+label.field .flabel{display:block;color:var(--muted);font-size:11.5px;margin-bottom:4px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;}
+button{
+  background:var(--panel-2);color:var(--text);border:1px solid var(--border);
+  border-radius:5px;padding:7px 10px;font-size:12.5px;cursor:pointer;font-family:inherit;
+  transition:background .12s,border-color .12s;
+}
+button:hover{background:#26262c;border-color:#3a3a42;}
+button.primary{background:var(--accent-dim);border-color:var(--accent);color:#fff5e0;}
+button.primary:hover{background:var(--accent);}
+button.danger{color:#f0d5d5;}
+button.danger:hover{background:var(--danger);border-color:var(--danger-hover);}
+button.full{width:100%;}
+button:disabled{opacity:.35;cursor:default;}
+button:disabled:hover{background:var(--panel-2);border-color:var(--border);}
+
+.palette-item{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px;margin-bottom:6px;
+}
+.palette-item svg{flex-shrink:0;width:38px;height:38px;background:#0e0e10;border-radius:4px;border:1px solid var(--border);}
+.palette-item .plabel{font-size:12.5px;}
+.palette-item .psub{display:block;color:var(--muted);font-size:10.5px;}
+
+.canvas-wrap{
+  position:relative;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 30%,#232326,#08080a 78%);
+  overflow:auto;
+  padding:20px;
+}
+#artboard{
+  height:100%;max-height:100%;width:auto;max-width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  border-radius:6px;
+  touch-action:none;
+  cursor:default;
+  background:#000;
+}
+.hint{
+  position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  color:var(--muted);font-size:11.5px;background:rgba(0,0,0,.55);
+  padding:6px 12px;border-radius:20px;pointer-events:none;border:1px solid var(--border);
+}
+
+.layer-row{
+  display:flex;align-items:center;gap:6px;padding:6px 6px;border-radius:5px;margin-bottom:3px;
+  border:1px solid transparent;cursor:pointer;background:var(--panel-2);
+}
+.layer-row.selected{border-color:var(--accent);background:#2a2418;}
+.layer-row .lname{flex:1;font-size:12px;}
+.layer-row .lsub{color:var(--muted);font-size:10px;}
+.layer-row button{padding:3px 6px;font-size:11px;}
+.layer-row .eye{opacity:.55;}
+.layer-row.hidden-el{opacity:.45;}
+
+.swatches{display:flex;gap:6px;margin-bottom:4px;}
+.swatch{width:26px;height:26px;border-radius:50%;border:2px solid var(--border);cursor:pointer;padding:0;}
+.swatch.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+
+.rangewrap{display:flex;align-items:center;gap:8px;}
+.rangewrap input[type=range]{flex:1;}
+.rangewrap .rv{width:32px;text-align:right;color:var(--muted);font-size:11px;}
+
+.empty-msg{color:var(--muted);font-size:12px;font-style:italic;padding:10px 4px;}
+
+footer.notes{padding:10px 14px;border-top:1px solid var(--border);background:var(--panel);flex-shrink:0;}
+footer.notes textarea{height:44px;resize:vertical;}
+footer.notes .flabel{color:var(--muted);font-size:11px;margin-bottom:4px;display:block;}
+
+::-webkit-scrollbar{width:9px;height:9px;}
+::-webkit-scrollbar-thumb{background:#2c2c33;border-radius:5px;}
+::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Atelier de composition · tatouage</h1>
+  <span class="sub">blackwork organique — forêt, lune, corbeaux, racines</span>
+  <details>
+    <summary>Style de référence ▾</summary>
+    <div class="style-text" id="styleText"></div>
+  </details>
+</header>
+
+<div class="workspace">
+
+  <aside class="panel left">
+    <h2>Zone du corps</h2>
+    <label class="field">
+      <span class="flabel">Partie du corps</span>
+      <select id="bodyPartSelect"></select>
+    </label>
+    <div class="btn-row">
+      <button id="mirrorBtn" class="full">↔ Inverser bras gauche/droit</button>
+    </div>
+
+    <h2>Ajouter un élément</h2>
+    <div id="palette"></div>
+  </aside>
+
+  <main class="canvas-wrap">
+    <svg id="artboard" viewBox="0 0 500 900" xmlns="http://www.w3.org/2000/svg">
+      <defs id="artDefs">
+        <filter id="inkRough" x="-30%" y="-30%" width="160%" height="160%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+        <filter id="softBlur" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="9"/>
+        </filter>
+        <linearGradient id="skinGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#cdb6a0"/>
+          <stop offset="1" stop-color="#a68b73"/>
+        </linearGradient>
+        <clipPath id="bodyClip"><path id="bodyClipPath" d=""/></clipPath>
+      </defs>
+      <rect x="0" y="0" width="500" height="900" fill="#3c3b3a"/>
+      <g id="bodyGroup">
+        <g id="bgGuide"></g>
+        <g id="elementsLayer" clip-path="url(#bodyClip)"></g>
+        <g id="overlay"></g>
+      </g>
+    </svg>
+    <div class="hint">Glisser pour déplacer · poignée du haut = pivoter · poignée du coin = redimensionner · Suppr = supprimer</div>
+  </main>
+
+  <aside class="panel right">
+    <h2>Calques</h2>
+    <div id="layerList"></div>
+
+    <h2>Propriétés</h2>
+    <div id="properties"><p class="empty-msg">Sélectionnez un élément sur le dessin ou dans les calques.</p></div>
+
+    <h2>Composition</h2>
+    <div class="btn-row">
+      <button id="demoBtn">Composition d'exemple</button>
+      <button id="clearBtn" class="danger">Tout effacer</button>
+    </div>
+
+    <h2>Exporter / sauvegarder</h2>
+    <div class="btn-row">
+      <button id="exportPngBtn" class="primary full">Exporter en PNG</button>
+    </div>
+    <div class="btn-row">
+      <button id="saveJsonBtn">Sauvegarder (JSON)</button>
+      <button id="loadJsonBtn">Charger (JSON)</button>
+      <input type="file" id="loadJsonInput" accept="application/json" style="display:none">
+    </div>
+  </aside>
+
+</div>
+
+<footer class="notes">
+  <span class="flabel">Notes pour le tatoueur (incluses dans la sauvegarde)</span>
+  <textarea id="notesArea" placeholder="Ex : taille réelle ~28cm, encre noire pure + gris dilué pour la brume, pas de contour net..."></textarea>
+</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- utils ---------- */
+function svgEl(tag, attrs){
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  if(attrs) for(const k in attrs) if(attrs[k]!==undefined && attrs[k]!==null) el.setAttribute(k, attrs[k]);
+  return el;
+}
+function mulberry32(seed){
+  let a = seed >>> 0;
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function randSeed(){ return Math.floor(Math.random()*1e9); }
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function smoothClosedPath(points, tension){
+  tension = tension===undefined?1:tension;
+  const n = points.length;
+  let d = "M "+points[0].x.toFixed(2)+" "+points[0].y.toFixed(2)+" ";
+  for(let i=0;i<n;i++){
+    const p0 = points[(i-1+n)%n], p1 = points[i], p2 = points[(i+1)%n], p3 = points[(i+2)%n];
+    const c1x = p1.x + (p2.x-p0.x)/6*tension, c1y = p1.y + (p2.y-p0.y)/6*tension;
+    const c2x = p2.x - (p3.x-p1.x)/6*tension, c2y = p2.y - (p3.y-p1.y)/6*tension;
+    d += "C "+c1x.toFixed(2)+" "+c1y.toFixed(2)+" "+c2x.toFixed(2)+" "+c2y.toFixed(2)+" "+p2.x.toFixed(2)+" "+p2.y.toFixed(2)+" ";
+  }
+  return d+"Z";
+}
+
+/* ---------- body part silhouettes ---------- */
+const BODY_PARTS = {
+  fullSleeve: { label:"Manche complète (épaule → poignet)", pts:[
+    [205,12],[130,45],[75,140],[92,255],[97,375],[88,478],[93,575],[108,672],[118,748],
+    [232,772],[342,748],[335,672],[330,575],[340,478],[347,375],[340,255],[347,140],[302,48],[262,15]
+  ]},
+  forearmHand: { label:"Avant-bras + main", pts:[
+    [170,15],[135,180],[118,320],[108,420],[95,480],[80,540],[68,610],
+    [72,660],[95,635],[110,680],[135,645],[160,690],[185,650],[205,675],[222,630],
+    [235,590],[270,565],[320,540],[345,495],[325,455],[300,430],[290,320],[283,180],[245,15]
+  ]},
+  upperArm: { label:"Haut du bras (épaule → coude)", pts:[
+    [192,12],[100,42],[60,142],[75,282],[95,398],[150,430],[260,420],[300,392],[320,262],[310,122],[270,32]
+  ]},
+  back: { label:"Dos / omoplate", pts:[
+    [92,52],[56,220],[49,448],[66,648],[111,780],[300,790],[325,648],[318,448],[300,220],[226,46]
+  ]},
+  calf: { label:"Mollet", pts:[
+    [190,20],[150,42],[121,152],[111,320],[126,478],[141,598],[151,678],[230,698],[300,678],
+    [286,598],[271,478],[286,320],[276,152],[241,36]
+  ]},
+  chest: { label:"Torse / côtes", pts:[
+    [80,42],[50,152],[45,322],[60,500],[90,620],[280,630],[300,500],[295,322],[280,152],[240,46]
+  ]}
+};
+function bodyPathD(key){
+  const pts = BODY_PARTS[key].pts.map(p=>({x:p[0],y:p[1]}));
+  return smoothClosedPath(pts, 0.85);
+}
+
+/* ---------- shape generators ---------- */
+/* each returns {node: SVGGElement (unfilled/unstroked, colors applied by caller), bbox:{hx,hy}} */
+
+function symBox(hx,hy){ return {left:hx,right:hx,top:hy,bottom:hy}; }
+
+function genBlob(rng, o){
+  o = o||{};
+  const baseR = o.baseR||95, pts0 = o.points||10, irregularity = o.irregularity===undefined?0.5:o.irregularity;
+  const pts = [];
+  for(let i=0;i<pts0;i++){
+    const a = i*Math.PI*2/pts0 + (rng()-0.5)*0.35;
+    const r = baseR*(1 + (rng()-0.5)*2*irregularity);
+    pts.push({x:Math.cos(a)*r, y:Math.sin(a)*r});
+  }
+  const d = smoothClosedPath(pts, 1);
+  const g = svgEl("g",{});
+  g.appendChild(svgEl("path",{d}));
+  const maxR = baseR*(1+irregularity)*1.05;
+  return {node:g, bbox:symBox(maxR,maxR)};
+}
+
+function genBranch(rng, downward, o){
+  o = o||{};
+  const trunkLen = o.trunkLen|| (downward?110:150);
+  const thickness = o.thickness || (downward?15:13);
+  const depth = o.depth || 5;
+  const spread = o.spread===undefined?0.55:o.spread;
+  const segs = [];
+  let minX=0,maxX=0,minY=0,maxY=0;
+  function grow(x,y,angle,len,w,d){
+    if(d<=0 || len<9) return;
+    const dx = Math.sin(angle)*len;
+    const dy = (downward?1:-1)*Math.cos(angle)*len;
+    const x2=x+dx, y2=y+dy;
+    segs.push({x1:x,y1:y,x2:x2,y2:y2,w});
+    minX=Math.min(minX,x2); maxX=Math.max(maxX,x2);
+    minY=Math.min(minY,y2); maxY=Math.max(maxY,y2);
+    const nB = d>2 ? (rng()<0.45?2:3) : (rng()<0.55?1:2);
+    for(let i=0;i<nB;i++){
+      const off = (i-(nB-1)/2)*spread*0.85;
+      const a2 = angle + off + (rng()-0.5)*spread*0.7;
+      grow(x2,y2,a2, len*(0.62+rng()*0.16), w*0.6, d-1);
+    }
+  }
+  grow(0,0, (rng()-0.5)*0.3, trunkLen, thickness, depth);
+  const g = svgEl("g",{fill:"none","stroke-linecap":"round"});
+  segs.forEach(s=>{
+    g.appendChild(svgEl("line",{x1:s.x1.toFixed(1),y1:s.y1.toFixed(1),x2:s.x2.toFixed(1),y2:s.y2.toFixed(1),"stroke-width":s.w.toFixed(1)}));
+  });
+  const pad = 12;
+  const bbox = {left:Math.max(10,-minX)+pad, right:Math.max(10,maxX)+pad, top:Math.max(10,-minY)+pad, bottom:Math.max(10,maxY)+pad};
+  return {node:g, bbox};
+}
+
+function pineTreeD(rng, h, w){
+  h = h||220; w = w||120;
+  const tiers = 4;
+  const left=[{x:0,y:-h*0.5}], right=[{x:0,y:-h*0.5}];
+  const step = (h*0.82)/tiers;
+  for(let t=1;t<=tiers;t++){
+    const ty = -h*0.5 + step*t;
+    const tw = (w*0.5)*(t/tiers) + (rng()-0.5)*7;
+    const notchY = ty - step*0.42;
+    const notchW = tw*0.5 + (rng()-0.5)*4;
+    left.push({x:-notchW,y:notchY}); left.push({x:-tw,y:ty});
+    right.push({x:notchW,y:notchY}); right.push({x:tw,y:ty});
+  }
+  const trunkW = w*0.06;
+  const trunkBottom = -h*0.5 + step*tiers + h*0.16;
+  const pts = [...left, {x:-trunkW,y:trunkBottom}, {x:trunkW,y:trunkBottom}, ...right.slice().reverse()];
+  const d = "M "+pts.map(p=>p.x.toFixed(1)+" "+p.y.toFixed(1)).join(" L ")+" Z";
+  return {d, hx:w*0.5+8, hy:h*0.5+8};
+}
+function genPine(rng, o){
+  o=o||{};
+  const {d,hx,hy} = pineTreeD(rng, o.h, o.w);
+  const g = svgEl("g",{});
+  g.appendChild(svgEl("path",{d}));
+  return {node:g, bbox:symBox(hx,hy)};
+}
+function genForest(rng, o){
+  o=o||{};
+  const count = 3 + Math.floor(rng()*3);
+  const g = svgEl("g",{});
+  let minX=0,maxX=0,minY=0,maxY=0;
+  for(let i=0;i<count;i++){
+    const depthT = i/(count-1||1);
+    const x = -160 + rng()*320;
+    const scale = 0.45 + depthT*0.75 + rng()*0.15;
+    const h = 200*scale, w=115*scale;
+    const {d,hx,hy} = pineTreeD(rng,h,w);
+    const y = 90 - depthT*70;
+    const p = svgEl("path",{d, transform:`translate(${x.toFixed(1)},${y.toFixed(1)})`, "fill-opacity":(0.55+depthT*0.45).toFixed(2)});
+    g.appendChild(p);
+    minX=Math.min(minX,x-hx); maxX=Math.max(maxX,x+hx);
+    minY=Math.min(minY,y-hy); maxY=Math.max(maxY,y+hy);
+  }
+  const bbox = {left:-minX, right:maxX, top:-minY, bottom:maxY};
+  return {node:g, bbox};
+}
+
+function genMoon(rng, o){
+  o = o||{};
+  const r = o.r||78;
+  const variant = o.variant||"full";
+  const g = svgEl("g",{});
+  if(variant==="crescent"){
+    const d = `M 0 ${-r} A ${r} ${r} 0 1 0 0 ${r} A ${r} ${r} 0 1 0 0 ${-r} Z `+
+               `M ${r*0.32} ${-r*0.92} A ${r*0.86} ${r*0.86} 0 1 0 ${r*0.32} ${r*0.92} A ${r*0.86} ${r*0.86} 0 1 0 ${r*0.32} ${-r*0.92} Z`;
+    g.appendChild(svgEl("path",{d,"fill-rule":"evenodd"}));
+  } else {
+    g.appendChild(svgEl("circle",{cx:0,cy:0,r}));
+    const craters = 4+Math.floor(rng()*3);
+    for(let i=0;i<craters;i++){
+      const a = rng()*Math.PI*2, dist = rng()*r*0.65, cr = r*(0.06+rng()*0.13);
+      g.appendChild(svgEl("circle",{cx:(Math.cos(a)*dist).toFixed(1), cy:(Math.sin(a)*dist).toFixed(1), r:cr.toFixed(1), fill:"#000", "fill-opacity":(0.15+rng()*0.15).toFixed(2)}));
+    }
+  }
+  return {node:g, bbox:symBox(r*1.08, r*1.08)};
+}
+
+function ravenD(variant, W, H){
+  W=W||190; H=H||78;
+  if(variant===2){
+    return `M ${-W/2} ${H*0.15} Q ${-W*0.28} ${-H*0.3} ${-W*0.08} ${-H*0.95} Q ${-W*0.04} ${-H*0.5} 0 ${-H*0.35} `+
+           `Q ${W*0.04} ${-H*0.5} ${W*0.08} ${-H*0.95} Q ${W*0.28} ${-H*0.3} ${W/2} ${H*0.15} `+
+           `Q ${W*0.22} ${H*0.05} ${W*0.06} ${H*0.35} Q ${W*0.03} ${H*0.75} 0 ${H*0.95} Q ${-W*0.03} ${H*0.75} ${-W*0.06} ${H*0.35} `+
+           `Q ${-W*0.22} ${H*0.05} ${-W/2} ${H*0.15} Z`;
+  }
+  return `M ${-W/2} 0 Q ${-W*0.27} ${-H*0.95} ${-W*0.06} ${-H*0.14} Q ${-W*0.02} ${-H*0.32} 0 ${-H*0.5} `+
+         `Q ${W*0.02} ${-H*0.32} ${W*0.06} ${-H*0.14} Q ${W*0.27} ${-H*0.95} ${W/2} 0 `+
+         `Q ${W*0.24} ${H*0.55} ${W*0.07} ${H*0.12} Q ${W*0.14} ${H*0.85} 0 ${H*0.95} Q ${-W*0.14} ${H*0.85} ${-W*0.07} ${H*0.12} `+
+         `Q ${-W*0.24} ${H*0.55} ${-W/2} 0 Z`;
+}
+function genRaven(rng, o){
+  o=o||{};
+  const variant = o.variant||1;
+  const W=175+rng()*20, H=72+rng()*10;
+  const d = ravenD(variant, W, H);
+  const g = svgEl("g",{});
+  g.appendChild(svgEl("path",{d}));
+  return {node:g, bbox:symBox(W*0.52, H*1.0)};
+}
+
+function genMist(rng, o){
+  o=o||{};
+  const r = o.r||130;
+  const g = svgEl("g",{filter:"url(#softBlur)"});
+  const blobs = 2+Math.floor(rng()*2);
+  let maxR=r;
+  for(let i=0;i<blobs;i++){
+    const cx=(rng()-0.5)*r*0.9, cy=(rng()-0.5)*r*0.6;
+    const rr = r*(0.55+rng()*0.4);
+    const pts=[];
+    const n=7;
+    for(let k=0;k<n;k++){
+      const a=k*Math.PI*2/n;
+      const rv = rr*(1+(rng()-0.5)*0.6);
+      pts.push({x:cx+Math.cos(a)*rv, y:cy+Math.sin(a)*rv});
+    }
+    const d = smoothClosedPath(pts,1);
+    g.appendChild(svgEl("path",{d, "fill-opacity":(0.4+rng()*0.3).toFixed(2)}));
+    maxR = Math.max(maxR, Math.abs(cx)+rr, Math.abs(cy)+rr);
+  }
+  return {node:g, bbox:symBox(maxR*1.05, maxR*1.05)};
+}
+
+const ELEMENT_TYPES = {
+  ink:      {label:"Masse d'encre",   sub:"forme organique abstraite", color:"#0a0a0a", opacity:0.96, rough:true,  build:(rng,el)=>genBlob(rng,{})},
+  branches: {label:"Branches mortes", sub:"fractal, s'étend vers le haut", color:"#0a0a0a", opacity:0.92, rough:true, build:(rng,el)=>genBranch(rng,false,{})},
+  roots:    {label:"Racines",         sub:"fractal, s'étend vers le bas", color:"#0a0a0a", opacity:0.92, rough:true, build:(rng,el)=>genBranch(rng,true,{})},
+  pine:     {label:"Pin isolé",       sub:"un seul arbre",       color:"#050505", opacity:0.95, rough:true,  build:(rng,el)=>genPine(rng,{})},
+  forest:   {label:"Forêt (cluster)", sub:"plusieurs pins, profondeur", color:"#050505", opacity:0.95, rough:true, build:(rng,el)=>genForest(rng,{})},
+  moon:     {label:"Lune",            sub:"pleine / croissant",  color:"#efe7d6", opacity:0.98, rough:false, variants:["full","crescent"], build:(rng,el)=>genMoon(rng,{variant:el.variant})},
+  raven:    {label:"Corbeau",         sub:"2 poses possibles",   color:"#050505", opacity:0.97, rough:false, variants:[1,2], build:(rng,el)=>genRaven(rng,{variant:el.variant})},
+  mist:     {label:"Brume",           sub:"brouillard flouté",   color:"#8f8f90", opacity:0.5,  rough:false, build:(rng,el)=>genMist(rng,{})}
+};
+const COLOR_SWATCHES = ["#050505","#1f1f1f","#3a3a3a","#5c5c5c","#8a8a8a","#efe7d6"];
+
+/* ---------- state ---------- */
+let state = {
+  bodyPart: "fullSleeve",
+  mirror: false,
+  elements: [],
+  notes: ""
+};
+let selectedId = null;
+let idCounter = 1;
+
+const STYLE_TEXT = "Abstract organic blackwork sleeve, contemporary dark art tattoo, flowing ink composition, large black organic shapes, bold brushstroke aesthetic, heavy use of negative skin, landscape carved into the abstract forms instead of placed beside them. Pine forest, dead branches, mist, full moon, ravens and roots emerge only inside the black masses. The abstract composition slices through the scenery, breaking trees and moon into fragments. No framed illustration, no separated scene, no realism-first composition. From a distance it reads as abstract blackwork; up close the forest gradually appears. Dynamic, asymmetrical, high contrast, modern, elegant, atmospheric, black and grey tattoo design.";
+document.getElementById("styleText").textContent = STYLE_TEXT;
+
+/* ---------- DOM refs ---------- */
+const svg = document.getElementById("artboard");
+const bodyGroup = document.getElementById("bodyGroup");
+const bgGuide = document.getElementById("bgGuide");
+const elementsLayer = document.getElementById("elementsLayer");
+const overlay = document.getElementById("overlay");
+const bodyClipPath = document.getElementById("bodyClipPath");
+const bodyPartSelect = document.getElementById("bodyPartSelect");
+const layerListEl = document.getElementById("layerList");
+const propsEl = document.getElementById("properties");
+const notesArea = document.getElementById("notesArea");
+
+/* populate body part select */
+Object.keys(BODY_PARTS).forEach(key=>{
+  const opt = document.createElement("option");
+  opt.value = key; opt.textContent = BODY_PARTS[key].label;
+  bodyPartSelect.appendChild(opt);
+});
+bodyPartSelect.addEventListener("change", ()=>{
+  state.bodyPart = bodyPartSelect.value;
+  renderBodyGuide();
+  persist();
+});
+document.getElementById("mirrorBtn").addEventListener("click", ()=>{
+  state.mirror = !state.mirror;
+  renderBodyGuide();
+  persist();
+});
+
+function renderBodyGuide(){
+  bodyPartSelect.value = state.bodyPart;
+  const d = bodyPathD(state.bodyPart);
+  bodyClipPath.setAttribute("d", d);
+  bgGuide.innerHTML = "";
+  bgGuide.appendChild(svgEl("path",{d, fill:"url(#skinGrad)", stroke:"#00000030", "stroke-width":1.5}));
+  bodyGroup.setAttribute("transform", state.mirror ? "translate(500,0) scale(-1,1)" : "");
+}
+
+/* ---------- palette ---------- */
+const paletteEl = document.getElementById("palette");
+function miniIcon(type){
+  const def = ELEMENT_TYPES[type];
+  const rng = mulberry32(99);
+  const built = def.build(rng, {variant: def.variants?def.variants[0]:undefined});
+  const b = built.bbox;
+  const s = Math.max(b.left,b.right,b.top,b.bottom) || 100;
+  const svgIcon = svgEl("svg",{viewBox:`${-s} ${-s} ${s*2} ${s*2}`});
+  const g = svgEl("g",{fill:def.color, stroke:def.color});
+  g.appendChild(built.node);
+  svgIcon.appendChild(g);
+  return svgIcon;
+}
+Object.keys(ELEMENT_TYPES).forEach(type=>{
+  const def = ELEMENT_TYPES[type];
+  const btn = document.createElement("button");
+  btn.className = "palette-item";
+  btn.appendChild(miniIcon(type));
+  const txt = document.createElement("span");
+  txt.innerHTML = `<span class="plabel">${def.label}</span><span class="psub">${def.sub}</span>`;
+  btn.appendChild(txt);
+  btn.addEventListener("click", ()=>addElement(type));
+  paletteEl.appendChild(btn);
+});
+
+/* ---------- element management ---------- */
+function defaultVariant(type){
+  const def = ELEMENT_TYPES[type];
+  return def.variants ? def.variants[0] : undefined;
+}
+function addElement(type, opts){
+  opts = opts||{};
+  const el = {
+    id: idCounter++,
+    type,
+    x: opts.x!==undefined?opts.x:250,
+    y: opts.y!==undefined?opts.y:400,
+    rot: opts.rot||0,
+    scale: opts.scale||1,
+    flip: 1,
+    opacity: opts.opacity!==undefined?opts.opacity:ELEMENT_TYPES[type].opacity,
+    color: opts.color||ELEMENT_TYPES[type].color,
+    visible: true,
+    seed: opts.seed!==undefined?opts.seed:randSeed(),
+    variant: opts.variant!==undefined?opts.variant:defaultVariant(type)
+  };
+  state.elements.push(el);
+  selectedId = el.id;
+  renderElements();
+  persist();
+  return el;
+}
+function getEl(id){ return state.elements.find(e=>e.id===id); }
+function removeEl(id){
+  state.elements = state.elements.filter(e=>e.id!==id);
+  if(selectedId===id) selectedId=null;
+  renderElements();
+  persist();
+}
+function reorder(id, dir){
+  const i = state.elements.findIndex(e=>e.id===id);
+  if(i<0) return;
+  if(dir==="front"){ const [e]=state.elements.splice(i,1); state.elements.push(e); }
+  else if(dir==="back"){ const [e]=state.elements.splice(i,1); state.elements.unshift(e); }
+  else if(dir==="up" && i<state.elements.length-1){ [state.elements[i],state.elements[i+1]]=[state.elements[i+1],state.elements[i]]; }
+  else if(dir==="down" && i>0){ [state.elements[i],state.elements[i-1]]=[state.elements[i-1],state.elements[i]]; }
+  renderElements();
+  persist();
+}
+function duplicateEl(id){
+  const src = getEl(id);
+  if(!src) return;
+  const copy = Object.assign({}, src, {id:idCounter++, x:src.x+18, y:src.y+18});
+  state.elements.push(copy);
+  selectedId = copy.id;
+  renderElements();
+  persist();
+}
+
+/* ---------- rendering ---------- */
+function elTransform(el){
+  return `translate(${el.x.toFixed(1)},${el.y.toFixed(1)}) rotate(${el.rot.toFixed(1)}) scale(${(el.scale*el.flip).toFixed(3)},${el.scale.toFixed(3)})`;
+}
+
+function renderElements(){
+  elementsLayer.innerHTML = "";
+  state.elements.forEach(el=>{
+    const def = ELEMENT_TYPES[el.type];
+    const rng = mulberry32(el.seed);
+    const built = def.build(rng, el);
+    el.bbox = built.bbox;
+    const g = svgEl("g",{
+      "data-id": el.id,
+      fill: el.color, stroke: el.color,
+      opacity: el.visible ? el.opacity : 0,
+      style: `pointer-events:${el.visible?"auto":"none"}; cursor:${el.visible?"grab":"default"};`,
+      transform: elTransform(el)
+    });
+    if(def.rough) built.node.setAttribute("filter","url(#inkRough)");
+    const b = el.bbox;
+    const hit = svgEl("rect",{
+      x:-b.left, y:-b.top, width:b.left+b.right, height:b.top+b.bottom,
+      fill:"transparent", stroke:"none"
+    });
+    g.appendChild(hit);
+    g.appendChild(built.node);
+    g.addEventListener("pointerdown", (evt)=>startDrag(evt, el, "move"));
+    elementsLayer.appendChild(g);
+  });
+  renderOverlay();
+  renderLayerList();
+  renderProperties();
+}
+
+function renderOverlay(){
+  overlay.innerHTML = "";
+  const el = getEl(selectedId);
+  if(!el || !el.visible) return;
+  const b = el.bbox;
+  const left=b.left*el.scale, right=b.right*el.scale, top=b.top*el.scale, bottom=b.bottom*el.scale;
+  const g = svgEl("g",{transform:`translate(${el.x.toFixed(1)},${el.y.toFixed(1)}) rotate(${el.rot.toFixed(1)})`});
+  g.appendChild(svgEl("rect",{
+    x:-left,y:-top,width:left+right,height:top+bottom,fill:"none",stroke:"#b9974a","stroke-width":1.4,
+    "stroke-dasharray":"6 4", "vector-effect":"non-scaling-stroke"
+  }));
+  // rotate handle (above top edge, centered)
+  const rotY = -top-30;
+  g.appendChild(svgEl("line",{x1:0,y1:-top,x2:0,y2:rotY,stroke:"#b9974a","stroke-width":1.4}));
+  const rotHandle = svgEl("circle",{cx:0,cy:rotY,r:9,fill:"#b9974a",stroke:"#1a1a1a","stroke-width":1.5,style:"cursor:grab;"});
+  rotHandle.addEventListener("pointerdown",(evt)=>{ evt.stopPropagation(); startDrag(evt, el, "rotate"); });
+  g.appendChild(rotHandle);
+  // resize handle (bottom-right corner)
+  const resizeHandle = svgEl("circle",{cx:right,cy:bottom,r:9,fill:"#fff",stroke:"#1a1a1a","stroke-width":1.5,style:"cursor:nwse-resize;"});
+  resizeHandle.addEventListener("pointerdown",(evt)=>{ evt.stopPropagation(); startDrag(evt, el, "scale"); });
+  g.appendChild(resizeHandle);
+  // delete handle (top-right corner)
+  const delHandle = svgEl("circle",{cx:right,cy:-top,r:9,fill:"#9a4444",stroke:"#1a1a1a","stroke-width":1.5,style:"cursor:pointer;"});
+  delHandle.addEventListener("pointerdown",(evt)=>{ evt.stopPropagation(); });
+  delHandle.addEventListener("click",(evt)=>{ evt.stopPropagation(); removeEl(el.id); });
+  g.appendChild(delHandle);
+  const delX = svgEl("text",{x:right,y:-top+4,"text-anchor":"middle",fill:"#fff",style:"font-size:11px;pointer-events:none;font-family:sans-serif;"});
+  delX.textContent = "×";
+  g.appendChild(delX);
+  overlay.appendChild(g);
+}
+
+/* ---------- drag interactions ---------- */
+let drag = null;
+function toLocalPoint(evt){
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  const ctm = bodyGroup.getScreenCTM().inverse();
+  return pt.matrixTransform(ctm);
+}
+function startDrag(evt, el, mode){
+  if(evt.button!==undefined && evt.button!==0) return;
+  evt.preventDefault();
+  selectedId = el.id;
+  const p = toLocalPoint(evt);
+  drag = { el, mode, offsetX: el.x-p.x, offsetY: el.y-p.y };
+  svg.setPointerCapture(evt.pointerId);
+  svg.addEventListener("pointermove", onDragMove);
+  svg.addEventListener("pointerup", onDragEnd);
+  renderOverlay(); renderLayerList(); renderProperties();
+}
+function onDragMove(evt){
+  if(!drag) return;
+  const p = toLocalPoint(evt);
+  const el = drag.el;
+  if(drag.mode==="move"){
+    el.x = p.x + drag.offsetX;
+    el.y = p.y + drag.offsetY;
+  } else if(drag.mode==="rotate"){
+    const dx = p.x-el.x, dy = p.y-el.y;
+    let deg = Math.atan2(dx,-dy)*180/Math.PI;
+    el.rot = Math.round(deg);
+  } else if(drag.mode==="scale"){
+    const rad = -el.rot*Math.PI/180;
+    const dx = p.x-el.x, dy = p.y-el.y;
+    const lx = dx*Math.cos(rad) - dy*Math.sin(rad);
+    const ly = dx*Math.sin(rad) + dy*Math.cos(rad);
+    const dist = Math.hypot(lx,ly);
+    const base = Math.hypot(el.bbox.right, el.bbox.bottom);
+    el.scale = clamp(dist/base, 0.15, 5);
+  }
+  const g = elementsLayer.querySelector(`[data-id="${el.id}"]`);
+  if(g) g.setAttribute("transform", elTransform(el));
+  renderOverlay();
+}
+function onDragEnd(evt){
+  svg.removeEventListener("pointermove", onDragMove);
+  svg.removeEventListener("pointerup", onDragEnd);
+  try{ svg.releasePointerCapture(evt.pointerId); }catch(e){}
+  drag = null;
+  renderProperties();
+  persist();
+}
+svg.addEventListener("pointerdown",(evt)=>{
+  if(evt.target===svg || evt.target.tagName==="rect" && evt.target.parentNode===bgGuide){
+    selectedId = null;
+    renderOverlay(); renderLayerList(); renderProperties();
+  }
+});
+document.addEventListener("keydown",(evt)=>{
+  if(!selectedId) return;
+  const active = document.activeElement;
+  if(active && (active.tagName==="TEXTAREA"||active.tagName==="INPUT")) return;
+  const el = getEl(selectedId);
+  if(!el) return;
+  let moved=false;
+  const step = evt.shiftKey?20:4;
+  if(evt.key==="Delete"||evt.key==="Backspace"){ removeEl(selectedId); evt.preventDefault(); return; }
+  if(evt.key==="ArrowLeft"){ el.x-=step; moved=true; }
+  if(evt.key==="ArrowRight"){ el.x+=step; moved=true; }
+  if(evt.key==="ArrowUp"){ el.y-=step; moved=true; }
+  if(evt.key==="ArrowDown"){ el.y+=step; moved=true; }
+  if(moved){ evt.preventDefault(); const g=elementsLayer.querySelector(`[data-id="${el.id}"]`); if(g) g.setAttribute("transform", elTransform(el)); renderOverlay(); persist(); }
+});
+
+/* ---------- layer list ---------- */
+function renderLayerList(){
+  layerListEl.innerHTML = "";
+  if(state.elements.length===0){
+    layerListEl.innerHTML = '<p class="empty-msg">Aucun élément — ajoutez-en depuis la palette à gauche.</p>';
+    return;
+  }
+  const ordered = state.elements.slice().reverse();
+  ordered.forEach(el=>{
+    const row = document.createElement("div");
+    row.className = "layer-row"+(el.id===selectedId?" selected":"")+(el.visible?"":" hidden-el");
+    const name = document.createElement("span");
+    name.className = "lname";
+    name.textContent = ELEMENT_TYPES[el.type].label;
+    row.appendChild(name);
+    const eyeBtn = document.createElement("button");
+    eyeBtn.className = "eye";
+    eyeBtn.textContent = el.visible ? "👁" : "🚫";
+    eyeBtn.title = "Afficher / masquer";
+    eyeBtn.addEventListener("click",(e)=>{ e.stopPropagation(); el.visible=!el.visible; renderElements(); persist(); });
+    row.appendChild(eyeBtn);
+    const upBtn = document.createElement("button"); upBtn.textContent="▲"; upBtn.title="Monter";
+    upBtn.addEventListener("click",(e)=>{ e.stopPropagation(); reorder(el.id,"up"); });
+    row.appendChild(upBtn);
+    const downBtn = document.createElement("button"); downBtn.textContent="▼"; downBtn.title="Descendre";
+    downBtn.addEventListener("click",(e)=>{ e.stopPropagation(); reorder(el.id,"down"); });
+    row.appendChild(downBtn);
+    row.addEventListener("click", ()=>{ selectedId=el.id; renderOverlay(); renderLayerList(); renderProperties(); });
+    layerListEl.appendChild(row);
+  });
+}
+
+/* ---------- properties panel ---------- */
+function renderProperties(){
+  propsEl.innerHTML = "";
+  const el = getEl(selectedId);
+  if(!el){
+    propsEl.innerHTML = '<p class="empty-msg">Sélectionnez un élément sur le dessin ou dans les calques.</p>';
+    return;
+  }
+  const def = ELEMENT_TYPES[el.type];
+
+  const title = document.createElement("div");
+  title.style.cssText="font-size:13px;margin-bottom:10px;color:#e9e7e1;";
+  title.textContent = def.label;
+  propsEl.appendChild(title);
+
+  // opacity
+  const opWrap = document.createElement("label"); opWrap.className="field";
+  opWrap.innerHTML = `<span class="flabel">Opacité</span>`;
+  const opRow = document.createElement("div"); opRow.className="rangewrap";
+  const opRange = document.createElement("input"); opRange.type="range"; opRange.min="0.05"; opRange.max="1"; opRange.step="0.01"; opRange.value=el.opacity;
+  const opVal = document.createElement("span"); opVal.className="rv"; opVal.textContent = Math.round(el.opacity*100)+"%";
+  opRange.addEventListener("input",()=>{ el.opacity=parseFloat(opRange.value); opVal.textContent=Math.round(el.opacity*100)+"%"; const g=elementsLayer.querySelector(`[data-id="${el.id}"]`); if(g) g.setAttribute("opacity", el.opacity); });
+  opRange.addEventListener("change",persist);
+  opRow.appendChild(opRange); opRow.appendChild(opVal);
+  opWrap.appendChild(opRow);
+  propsEl.appendChild(opWrap);
+
+  // color
+  const colWrap = document.createElement("label"); colWrap.className="field";
+  colWrap.innerHTML = `<span class="flabel">Teinte (noir / gris)</span>`;
+  const swWrap = document.createElement("div"); swWrap.className="swatches";
+  COLOR_SWATCHES.forEach(c=>{
+    const sw = document.createElement("button");
+    sw.className = "swatch"+(el.color.toLowerCase()===c?" active":"");
+    sw.style.background = c;
+    sw.addEventListener("click",()=>{ el.color=c; renderElements(); persist(); });
+    swWrap.appendChild(sw);
+  });
+  colWrap.appendChild(swWrap);
+  propsEl.appendChild(colWrap);
+
+  // variant toggle
+  if(def.variants){
+    const vBtn = document.createElement("button"); vBtn.className="full"; vBtn.style.marginBottom="10px";
+    vBtn.textContent = "Changer de variante";
+    vBtn.addEventListener("click",()=>{
+      const idx = def.variants.indexOf(el.variant);
+      el.variant = def.variants[(idx+1)%def.variants.length];
+      renderElements(); persist();
+    });
+    propsEl.appendChild(vBtn);
+  }
+
+  // action buttons
+  const row1 = document.createElement("div"); row1.className="btn-row";
+  const regenBtn = document.createElement("button"); regenBtn.textContent="🎲 Régénérer";
+  regenBtn.addEventListener("click",()=>{ el.seed = randSeed(); renderElements(); persist(); });
+  row1.appendChild(regenBtn);
+  const flipBtn = document.createElement("button"); flipBtn.textContent="⇋ Miroir";
+  flipBtn.addEventListener("click",()=>{ el.flip*=-1; renderElements(); persist(); });
+  row1.appendChild(flipBtn);
+  const dupBtn = document.createElement("button"); dupBtn.textContent="⧉ Dupliquer";
+  dupBtn.addEventListener("click",()=>duplicateEl(el.id));
+  row1.appendChild(dupBtn);
+  propsEl.appendChild(row1);
+
+  const row2 = document.createElement("div"); row2.className="btn-row";
+  const frontBtn=document.createElement("button"); frontBtn.textContent="Premier plan"; frontBtn.addEventListener("click",()=>reorder(el.id,"front")); row2.appendChild(frontBtn);
+  const backBtn=document.createElement("button"); backBtn.textContent="Arrière-plan"; backBtn.addEventListener("click",()=>reorder(el.id,"back")); row2.appendChild(backBtn);
+  propsEl.appendChild(row2);
+
+  const row3 = document.createElement("div"); row3.className="btn-row";
+  const delBtn = document.createElement("button"); delBtn.className="danger full"; delBtn.textContent="🗑 Supprimer l'élément";
+  delBtn.addEventListener("click",()=>removeEl(el.id));
+  row3.appendChild(delBtn);
+  propsEl.appendChild(row3);
+}
+
+/* ---------- notes ---------- */
+notesArea.addEventListener("input",()=>{ state.notes = notesArea.value; });
+notesArea.addEventListener("change", persist);
+
+/* ---------- demo / clear ---------- */
+function loadDemo(){
+  state.bodyPart = "fullSleeve";
+  state.mirror = false;
+  state.elements = [];
+  state.notes = "Composition d'exemple générée automatiquement — à ajuster librement.";
+  notesArea.value = state.notes;
+  addElement("ink",      {x:180, y:520, scale:1.3, rot:22, opacity:0.94});
+  addElement("forest",   {x:275, y:430, scale:1.05});
+  addElement("branches", {x:205, y:195, scale:1.0, rot:-6});
+  addElement("moon",     {x:290, y:150, scale:1.0});
+  addElement("raven",    {x:195, y:190, scale:0.5, rot:-10, variant:1});
+  addElement("raven",    {x:330, y:350, scale:0.4, rot:8, variant:2});
+  addElement("mist",     {x:255, y:580, scale:0.9, opacity:0.35});
+  addElement("roots",    {x:270, y:680, scale:1.15});
+  renderBodyGuide();
+  renderElements();
+  persist();
+}
+document.getElementById("demoBtn").addEventListener("click", ()=>{
+  if(state.elements.length===0 || confirm("Remplacer la composition actuelle par l'exemple ?")) loadDemo();
+});
+document.getElementById("clearBtn").addEventListener("click", ()=>{
+  if(state.elements.length===0 || confirm("Supprimer tous les éléments du dessin ?")){
+    state.elements = []; selectedId=null; renderElements(); persist();
+  }
+});
+
+/* ---------- persistence ---------- */
+let persistTimer=null;
+function persist(){
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(()=>{
+    try{ localStorage.setItem("tattooDesignState", JSON.stringify(state)); }catch(e){}
+  }, 250);
+}
+function loadPersisted(){
+  try{
+    const raw = localStorage.getItem("tattooDesignState");
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    if(!data || !Array.isArray(data.elements)) return false;
+    state = data;
+    idCounter = Math.max(1, ...state.elements.map(e=>e.id+1), 1);
+    notesArea.value = state.notes||"";
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ---------- export ---------- */
+document.getElementById("exportPngBtn").addEventListener("click", ()=>{
+  selectedId = null; renderOverlay();
+  const clone = svg.cloneNode(true);
+  clone.removeAttribute("style");
+  clone.setAttribute("width","1000"); clone.setAttribute("height","1800");
+  const xml = new XMLSerializer().serializeToString(clone);
+  const blob = new Blob([xml], {type:"image/svg+xml;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = ()=>{
+    const canvas = document.createElement("canvas");
+    canvas.width = 1000; canvas.height = 1800;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img,0,0,1000,1800);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(b=>{
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(b);
+      a.download = "composition-tatouage.png";
+      a.click();
+    });
+  };
+  img.onerror = ()=>{ alert("Erreur lors de l'export PNG."); };
+  img.src = url;
+});
+document.getElementById("saveJsonBtn").addEventListener("click", ()=>{
+  const data = JSON.stringify(state, null, 2);
+  const blob = new Blob([data], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "composition-tatouage.json";
+  a.click();
+});
+const loadJsonInput = document.getElementById("loadJsonInput");
+document.getElementById("loadJsonBtn").addEventListener("click", ()=>loadJsonInput.click());
+loadJsonInput.addEventListener("change", ()=>{
+  const file = loadJsonInput.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      state = Object.assign({bodyPart:"fullSleeve",mirror:false,elements:[],notes:""}, data);
+      idCounter = Math.max(1, ...(state.elements.map(e=>e.id+1)), 1);
+      selectedId = null;
+      notesArea.value = state.notes||"";
+      renderBodyGuide();
+      renderElements();
+      persist();
+    }catch(e){ alert("Fichier JSON invalide."); }
+  };
+  reader.readAsText(file);
+  loadJsonInput.value = "";
+});
+
+/* ---------- init ---------- */
+if(!loadPersisted()){
+  loadDemo();
+} else {
+  renderBodyGuide();
+  renderElements();
+}
+
+})();
+</script>
+</body>
+</html>
